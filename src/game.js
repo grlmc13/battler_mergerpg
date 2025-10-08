@@ -4,10 +4,10 @@
 // Глобальные настройки игры
 window.gameConfig = {
     GRID_WIDTH: 8,
-    GRID_HEIGHT: 6,
+    GRID_HEIGHT: 8, // Увеличено с 6 до 8 (добавлено 2 ряда)
     CELL_SIZE: 50,
-    PLAYER_AREA_HEIGHT: 3,
-    ENEMY_AREA_HEIGHT: 3,
+    PLAYER_AREA_HEIGHT: 4, // Увеличено с 3 до 4
+    ENEMY_AREA_HEIGHT: 4, // Увеличено с 3 до 4
     STARTING_COINS: 10,
     
     UNIT_TYPES: {
@@ -30,6 +30,16 @@ window.gameConfig = {
             attackSpeed: 1.0,
             range: 10, // Увеличен радиус для всего поля
             color: 0xE24A4A
+        },
+        BARBARIAN: {
+            name: 'Варвар',
+            size: { width: 2, height: 1 },
+            cost: 4,
+            hp: 60,
+            damage: 15,
+            attackSpeed: 1.5,
+            range: 10, // Увеличен радиус для всего поля
+            color: 0xFF8C00
         },
         MAGE: {
             name: 'Маг',
@@ -78,10 +88,21 @@ class GridSystem {
 
     createVisualGrid() {
         const graphics = this.scene.add.graphics();
-        graphics.lineStyle(1, 0x444444, 0.5);
+        
+        // Область врага (верхняя половина) - темнее
+        graphics.fillStyle(0xE24A4A, 0.1);
+        graphics.fillRect(this.gridOffsetX, this.gridOffsetY, this.gridWidth * this.cellSize, (this.gridHeight / 2) * this.cellSize);
+        
+        // Область игрока (нижняя половина) - светлее
+        const playerAreaY = this.gridOffsetY + (this.gridHeight / 2 * this.cellSize);
+        graphics.fillStyle(0x4A90E2, 0.1);
+        graphics.fillRect(this.gridOffsetX, playerAreaY, this.gridWidth * this.cellSize, (this.gridHeight / 2) * this.cellSize);
+        
+        // Очень тонкие линии сетки
+        graphics.lineStyle(1, 0x888888, 0.2);
         
         // Вертикальные линии
-        for (let x = 0; x <= this.gridWidth; x++) {
+        for (let x = 1; x < this.gridWidth; x++) {
             const startX = this.gridOffsetX + (x * this.cellSize);
             const startY = this.gridOffsetY;
             const endY = this.gridOffsetY + (this.gridHeight * this.cellSize);
@@ -89,21 +110,12 @@ class GridSystem {
         }
         
         // Горизонтальные линии
-        for (let y = 0; y <= this.gridHeight; y++) {
+        for (let y = 1; y < this.gridHeight; y++) {
             const startY = this.gridOffsetY + (y * this.cellSize);
             const startX = this.gridOffsetX;
             const endX = this.gridOffsetX + (this.gridWidth * this.cellSize);
             graphics.lineBetween(startX, startY, endX, startY);
         }
-        
-        // Область игрока (нижняя половина)
-        const playerAreaY = this.gridOffsetY + (this.gridHeight / 2 * this.cellSize);
-        graphics.fillStyle(0x4A90E2, 0.1);
-        graphics.fillRect(this.gridOffsetX, playerAreaY, this.gridWidth * this.cellSize, (this.gridHeight / 2) * this.cellSize);
-        
-        // Область врага (верхняя половина)
-        graphics.fillStyle(0xE24A4A, 0.1);
-        graphics.fillRect(this.gridOffsetX, this.gridOffsetY, this.gridWidth * this.cellSize, (this.gridHeight / 2) * this.cellSize);
     }
 
     getGridPosition(worldX, worldY) {
@@ -477,6 +489,31 @@ class Warrior extends Unit {
     }
 }
 
+// Варвар
+class Barbarian extends Unit {
+    constructor(scene, gridX, gridY, isEnemy = false) {
+        super(scene, gridX, gridY, isEnemy, { width: 2, height: 1 }, 0xFF8C00);
+        
+        this.maxHp = 60;
+        this.hp = this.maxHp;
+        this.damage = 15;
+        this.attackSpeed = 1.5;
+        this.range = 10; // Увеличен радиус
+        
+        this.updateVisuals();
+    }
+
+    updateVisuals() {
+        if (this.sprite) {
+            this.sprite.setFillStyle(this.color);
+            
+            if (this.isEnemy) {
+                this.sprite.setFillStyle(0x666666);
+            }
+        }
+    }
+}
+
 // Маг
 class Mage extends Unit {
     constructor(scene, gridX, gridY, isEnemy = false) {
@@ -644,6 +681,8 @@ class GameScene extends Phaser.Scene {
         this.selectedUnitType = null;
         this.selectedUnitData = null;
         this.hintText = null;
+        this.shopUnits = []; // Случайные юниты в магазине
+        this.shopCards = []; // Карточки магазина
     }
 
     create() {
@@ -661,9 +700,6 @@ class GameScene extends Phaser.Scene {
     createGameField() {
         const { GRID_WIDTH, GRID_HEIGHT, CELL_SIZE } = window.gameConfig;
         this.gridSystem.createGrid(GRID_WIDTH, GRID_HEIGHT, CELL_SIZE);
-        
-        const centerY = (GRID_HEIGHT * CELL_SIZE) / 2;
-        this.add.line(0, centerY, 0, 0, GRID_WIDTH * CELL_SIZE, 0, 0x666666).setLineWidth(2);
     }
 
     createUI() {
@@ -695,17 +731,37 @@ class GameScene extends Phaser.Scene {
     }
 
     createShop() {
-        const { UNIT_TYPES } = window.gameConfig;
-        const shopY = 600;
+        const shopY = 700; // Сдвинуто с 600 до 700
         
-        this.add.text(240, shopY - 30, 'МАГАЗИН', {
-            fontSize: '18px',
-            fill: '#ffffff',
-            fontStyle: 'bold'
-        }).setOrigin(0.5);
+        // Генерируем 3 случайных юнита
+        this.generateShopUnits();
+        this.createShopCards(shopY);
+        
+        // Кнопка реролла
+        this.createRerollButton(shopY);
+    }
 
+    generateShopUnits() {
+        const { UNIT_TYPES } = window.gameConfig;
         const unitTypes = Object.keys(UNIT_TYPES);
-        unitTypes.forEach((type, index) => {
+        
+        this.shopUnits = [];
+        for (let i = 0; i < 3; i++) {
+            const randomType = Phaser.Utils.Array.GetRandom(unitTypes);
+            this.shopUnits.push(randomType);
+        }
+        
+        console.log('Сгенерированы юниты в магазине:', this.shopUnits);
+    }
+
+    createShopCards(shopY) {
+        const { UNIT_TYPES } = window.gameConfig;
+        
+        // Очищаем старые карточки
+        this.shopCards.forEach(card => card.destroy());
+        this.shopCards = [];
+        
+        this.shopUnits.forEach((type, index) => {
             const unitData = UNIT_TYPES[type];
             const x = 80 + (index * 100);
             
@@ -715,12 +771,15 @@ class GameScene extends Phaser.Scene {
                     this.selectUnit(type);
                 });
 
+            // Иконки юнитов
             if (type === 'ARCHER') {
-                this.add.circle(x, shopY - 20, 15, unitData.color);
+                this.add.circle(x, shopY - 20, 15, 0x8B4513);
             } else if (type === 'WARRIOR') {
-                this.add.rectangle(x, shopY - 20, 20, 30, unitData.color);
+                this.add.rectangle(x, shopY - 20, 3, 12, 0x8B4513);
+            } else if (type === 'BARBARIAN') {
+                this.add.rectangle(x, shopY - 20, 15, 8, 0x8B4513);
             } else if (type === 'MAGE') {
-                this.add.rectangle(x, shopY - 20, 25, 25, unitData.color);
+                this.add.star(x, shopY - 20, 5, 8, 4, 0xFFD700);
             }
 
             this.add.text(x, shopY + 20, unitData.name, {
@@ -733,15 +792,38 @@ class GameScene extends Phaser.Scene {
                 fontSize: '10px',
                 fill: '#FFD700'
             }).setOrigin(0.5);
-
-            card.on('pointerover', () => {
-                card.setFillStyle(unitData.color + 0x333333);
-            });
-
-            card.on('pointerout', () => {
-                card.setFillStyle(unitData.color);
-            });
+            
+            this.shopCards.push(card);
         });
+    }
+
+    createRerollButton(shopY) {
+        const rerollButton = this.add.rectangle(400, shopY, 60, 40, 0x666666)
+            .setInteractive()
+            .on('pointerdown', () => {
+                this.rerollShop();
+            });
+            
+        this.add.text(400, shopY, 'REROLL\n1 монета', {
+            fontSize: '10px',
+            fill: '#ffffff',
+            fontStyle: 'bold',
+            align: 'center'
+        }).setOrigin(0.5);
+        
+        this.rerollButton = rerollButton;
+    }
+
+    rerollShop() {
+        if (this.economySystem.canAfford(1)) {
+            this.economySystem.spendCoins(1);
+            this.updateCoinsDisplay();
+            this.generateShopUnits();
+            this.createShopCards(700); // Обновлено с 600 до 700
+            console.log('Магазин обновлен за 1 монету');
+        } else {
+            console.log('Недостаточно монет для реролла!');
+        }
     }
 
     selectUnit(unitType) {
@@ -784,8 +866,8 @@ class GameScene extends Phaser.Scene {
             return;
         }
         
-        // Проверяем, что клик НЕ по магазину (магазин внизу, y > 550)
-        if (pointer.y > 550) {
+        // Проверяем, что клик НЕ по магазину (магазин теперь внизу, y > 650)
+        if (pointer.y > 650) {
             console.log('Клик по магазину - игнорируем');
             // Возвращаем обработчик клика
             this.input.once('pointerdown', this.handlePlacement, this);
@@ -825,6 +907,9 @@ class GameScene extends Phaser.Scene {
                 break;
             case 'WARRIOR':
                 unit = new Warrior(this, gridX, gridY);
+                break;
+            case 'BARBARIAN':
+                unit = new Barbarian(this, gridX, gridY);
                 break;
             case 'MAGE':
                 unit = new Mage(this, gridX, gridY);
@@ -881,6 +966,7 @@ class GameScene extends Phaser.Scene {
         const unitTypes = [
             { type: 'ARCHER', data: UNIT_TYPES.ARCHER },
             { type: 'WARRIOR', data: UNIT_TYPES.WARRIOR },
+            { type: 'BARBARIAN', data: UNIT_TYPES.BARBARIAN },
             { type: 'MAGE', data: UNIT_TYPES.MAGE }
         ];
         
@@ -914,6 +1000,9 @@ class GameScene extends Phaser.Scene {
                             break;
                         case 'WARRIOR':
                             enemy = new Warrior(this, x, y, true);
+                            break;
+                        case 'BARBARIAN':
+                            enemy = new Barbarian(this, x, y, true);
                             break;
                         case 'MAGE':
                             enemy = new Mage(this, x, y, true);
@@ -1023,7 +1112,7 @@ class MenuScene extends Phaser.Scene {
 const config = {
     type: Phaser.AUTO,
     width: 480,
-    height: 800,
+    height: 900, // Увеличено с 800 до 900
     parent: 'game-container',
     backgroundColor: '#16213e',
     scale: {
