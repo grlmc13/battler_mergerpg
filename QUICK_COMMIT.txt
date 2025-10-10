@@ -1,0 +1,36 @@
+=== БЫСТРЫЙ КОММИТ И PUSH ===
+
+1. Добавить все файлы:
+   git add .
+
+2. Коммит:
+   git commit -m "feat: Add Taunt ability to Barbarian v1.1.0"
+
+3. Push на GitHub:
+   git push origin main
+
+=== ИЛИ ИСПОЛЬЗУЙТЕ GITHUB DESKTOP ===
+
+1. Откройте GitHub Desktop
+2. Выберите все измененные файлы
+3. Summary: "feat: Add Taunt ability to Barbarian v1.1.0"
+4. Description (опционально):
+   - Added Taunt ability to Barbarian
+   - Enemies attack Barbarians first
+   - Visual effect and documentation
+5. Нажмите "Commit to main"
+6. Нажмите "Push origin"
+
+=== ГОТОВО! ===
+
+Ваш проект обновлен на GitHub.
+Теперь можно показывать другим!
+
+Ссылка на репозиторий:
+https://github.com/ваш-username/MergePrototype
+
+
+
+
+
+

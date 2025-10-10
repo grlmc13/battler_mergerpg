@@ -1,0 +1,33 @@
+# Баланс юнитов для поля 9x6 (3+3 ряда)
+ID,Name_RU,Type,Size_X,Size_Y,Cost,HP,Damage,Attack_Speed,Range,DPS,HP_per_Cost,DPS_per_Cost,Special,Role
+archer,Лучник,ranged,1,1,2,30,8,0.5,10,16.0,15.0,8.0,,DPS
+warrior,Мечник,melee,1,2,3,50,12,1.0,10,12.0,16.7,4.0,battle_cry_2+,Support
+barbarian,Варвар,tank,2,1,4,60,15,1.5,10,10.0,15.0,2.5,taunt,Tank
+healer,Лекарь,support,1,1,3,25,3,2.0,10,1.5,8.3,0.5,heal_8_range_2,Healer
+mage,Маг,caster,2,2,5,40,8,2.5,10,3.2,8.0,0.64,multi_target_3,AoE
+
+# Метрики (с учетом Боевого клича от 2 Мечников)
+# 
+# Боевой клич: -25% attack_speed для всех союзников
+#
+# DPS с баффом (2+ мечника в команде):
+# Archer: 16.0 → 21.3 DPS (+33% эффективность!)
+# Warrior: 12.0 → 16.0 DPS
+# Barbarian: 10.0 → 13.3 DPS
+# Healer: 1.5 → 2.0 DPS (лечение тоже быстрее!)
+# Mage: 3.2 → 4.3 DPS (x3 цели = 12.9 суммарно)
+#
+# Синергии:
+# ⭐⭐⭐ 2 Мечника + 3 Лучника = 64 DPS (вместо 48!)
+# ⭐⭐⭐ 2 Мечника + Варвар + Лекарь = танк + быстрое лечение
+# ⭐⭐ 2 Мечника + Маг = массовый урон с ускорением
+#
+# Расчеты:
+# DPS = Damage / Attack_Speed
+# HP_per_Cost = HP / Cost
+# DPS_per_Cost = DPS / Cost
+
+
+
+
+
