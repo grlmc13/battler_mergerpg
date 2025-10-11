@@ -487,7 +487,7 @@ class Unit {
         
         // Для врагов делаем спрайт темнее
         if (this.isEnemy) {
-            this.sprite.setTint(0x666666);
+            this.sprite.setFillStyle(0x666666);
         }
         
         // Добавляем drag-and-drop для юнитов игрока
@@ -599,11 +599,11 @@ class Unit {
 
     createDamageEffect() {
         // Эффект повреждения - меняем цвет на красный и обратно
-        const originalTint = this.isEnemy ? 0x666666 : 0xFFFFFF;
-        this.sprite.setTint(0xFF0000);
+        const originalColor = this.isEnemy ? 0x666666 : this.color;
+        this.sprite.setFillStyle(0xFF0000);
         this.scene.time.delayedCall(100, () => {
             if (this.sprite && this.sprite.scene) {
-                this.sprite.setTint(originalTint);
+                this.sprite.setFillStyle(originalColor);
             }
         });
     }
@@ -836,11 +836,11 @@ class Archer extends Unit {
 
     updateVisuals() {
         if (this.sprite) {
-            // Для изображений используем tint вместо fillStyle
+            // Для прямоугольников используем setFillStyle
             if (this.isEnemy) {
-                this.sprite.setTint(0x666666);
+                this.sprite.setFillStyle(0x666666);
             } else {
-                this.sprite.setTint(0xFFFFFF);
+                this.sprite.setFillStyle(this.color);
             }
         }
     }
@@ -874,11 +874,11 @@ class Warrior extends Unit {
 
     updateVisuals() {
         if (this.sprite) {
-            // Для изображений используем tint вместо fillStyle
+            // Для прямоугольников используем setFillStyle
             if (this.isEnemy) {
-                this.sprite.setTint(0x666666);
+                this.sprite.setFillStyle(0x666666);
             } else {
-                this.sprite.setTint(0xFFFFFF);
+                this.sprite.setFillStyle(this.color);
             }
         }
     }
@@ -1002,11 +1002,11 @@ class Healer extends Unit {
 
     updateVisuals() {
         if (this.sprite) {
-            // Для изображений используем tint вместо fillStyle
+            // Для прямоугольников используем setFillStyle
             if (this.isEnemy) {
-                this.sprite.setTint(0x666666);
+                this.sprite.setFillStyle(0x666666);
             } else {
-                this.sprite.setTint(0xFFFFFF);
+                this.sprite.setFillStyle(this.color);
             }
         }
     }
@@ -1187,11 +1187,11 @@ class Barbarian extends Unit {
 
     updateVisuals() {
         if (this.sprite) {
-            // Для изображений используем tint вместо fillStyle
+            // Для прямоугольников используем setFillStyle
             if (this.isEnemy) {
-                this.sprite.setTint(0x666666);
+                this.sprite.setFillStyle(0x666666);
             } else {
-                this.sprite.setTint(0xFFFFFF);
+                this.sprite.setFillStyle(this.color);
             }
         }
     }
@@ -1253,11 +1253,11 @@ class Mage extends Unit {
 
     updateVisuals() {
         if (this.sprite) {
-            // Для изображений используем tint вместо fillStyle
+            // Для прямоугольников используем setFillStyle
             if (this.isEnemy) {
-                this.sprite.setTint(0x666666);
+                this.sprite.setFillStyle(0x666666);
             } else {
-                this.sprite.setTint(0xFFFFFF);
+                this.sprite.setFillStyle(this.color);
             }
         }
     }
