@@ -460,8 +460,24 @@ class Unit {
         else if (this.unitType === 'HEALER') spriteKey = 'healer';
         else if (this.unitType === 'MAGE') spriteKey = 'mage';
         
-        this.sprite = this.scene.add.image(centerX, centerY, spriteKey);
-        this.sprite.setDisplaySize(spriteWidth, spriteHeight);
+        console.log('Создаем спрайт:', spriteKey, 'для юнита:', this.constructor.name);
+        
+        // Проверяем, загружен ли спрайт
+        if (this.scene.textures.exists(spriteKey)) {
+            this.sprite = this.scene.add.image(centerX, centerY, spriteKey);
+            this.sprite.setDisplaySize(spriteWidth, spriteHeight);
+            console.log('Спрайт создан успешно:', spriteKey);
+        } else {
+            console.error('Спрайт не найден:', spriteKey, 'используем прямоугольник');
+            // Fallback к прямоугольнику если спрайт не загружен
+            this.sprite = this.scene.add.rectangle(
+                centerX, 
+                centerY, 
+                spriteWidth,
+                spriteHeight,
+                this.color
+            );
+        }
         
         // Добавляем рамку
         this.scene.add.rectangle(
@@ -1569,11 +1585,20 @@ class GameScene extends Phaser.Scene {
 
     preload() {
         // Загружаем спрайты юнитов
-        this.load.image('archer', 'assets/sprites/Elf_Archer.png');
-        this.load.image('warrior', 'assets/sprites/Elf_Knight_Sword.png');
-        this.load.image('barbarian', 'assets/sprites/Dwarf Axe Warrior.png');
-        this.load.image('healer', 'assets/sprites/Dark Elves Healer Priestess.png');
-        this.load.image('mage', 'assets/sprites/Dark Elves Crystal Mage.png');
+        this.load.image('archer', './assets/sprites/Elf_Archer.png');
+        this.load.image('warrior', './assets/sprites/Elf_Knight_Sword.png');
+        this.load.image('barbarian', './assets/sprites/Dwarf Axe Warrior.png');
+        this.load.image('healer', './assets/sprites/Dark Elves Healer Priestess.png');
+        this.load.image('mage', './assets/sprites/Dark Elves Crystal Mage.png');
+        
+        // Добавляем обработчики для отладки загрузки
+        this.load.on('filecomplete', (key, type, data) => {
+            console.log('Спрайт загружен:', key);
+        });
+        
+        this.load.on('loaderror', (file) => {
+            console.error('Ошибка загрузки спрайта:', file.key, file.url);
+        });
     }
 
     create() {
