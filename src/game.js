@@ -2482,16 +2482,27 @@ class GameScene extends Phaser.Scene {
         
         if (placementResult.canPlace) {
             if (placementResult.isMerge) {
-                // МЕРДЖ
-                placementResult.existingUnit.merge(this.selectedUnitType);
+                // МЕРДЖ - только мерджим существующий юнит
+                console.log('Мердж из магазина:', this.selectedUnitType);
+                const success = placementResult.existingUnit.merge(this.selectedUnitType);
+                if (success) {
+                    this.economySystem.spendCoins(this.selectedUnitData.cost);
+                    this.updateCoinsDisplay();
+                    this.removeCardFromShop(cardIndex);
+                    console.log('Мердж успешен!');
+                } else {
+                    console.log('Мердж не удался');
+                }
             } else {
-                // РАЗМЕЩЕНИЕ
+                // РАЗМЕЩЕНИЕ - создаем новый юнит
+                console.log('Размещение из магазина:', this.selectedUnitType);
                 this.placeUnit(this.selectedUnitType, gridPos.x, gridPos.y);
+                this.economySystem.spendCoins(this.selectedUnitData.cost);
+                this.updateCoinsDisplay();
+                this.removeCardFromShop(cardIndex);
             }
-            
-            this.economySystem.spendCoins(this.selectedUnitData.cost);
-            this.updateCoinsDisplay();
-            this.removeCardFromShop(cardIndex);
+        } else {
+            console.log('Нельзя разместить в этой позиции');
         }
         
         // Сброс состояния
@@ -2687,10 +2698,15 @@ class GameScene extends Phaser.Scene {
             if (placementResult.isMerge) {
                 // МЕРДЖ с существующим юнитом
                 console.log('Выполняем мердж');
-                placementResult.existingUnit.merge(this.draggedUnit.unitType);
-                // Удаляем перетаскиваемый юнит
-                this.draggedUnit.die();
-                this.gridSystem.removeUnit(this.draggedUnit);
+                const success = placementResult.existingUnit.merge(this.draggedUnit.unitType);
+                
+                if (success) {
+                    // Удаляем перетаскиваемый юнит
+                    this.draggedUnit.die();
+                    this.gridSystem.removeUnit(this.draggedUnit);
+                } else {
+                    console.log('Мердж не удался');
+                }
             } else {
                 // ПЕРЕМЕЩЕНИЕ
                 console.log('Выполняем перемещение');
