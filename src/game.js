@@ -462,16 +462,21 @@ class Unit {
         
         console.log('Создаем спрайт:', spriteKey, 'для юнита:', this.constructor.name);
         
-        // Временно отключаем спрайты из-за CORS проблем
-        // TODO: Включить спрайты когда будет HTTP сервер
-        console.log('Используем прямоугольник вместо спрайта:', spriteKey);
-        this.sprite = this.scene.add.rectangle(
-            centerX, 
-            centerY, 
-            spriteWidth,
-            spriteHeight,
-            this.color
-        );
+        // Пытаемся загрузить спрайт, если не получается - используем прямоугольник
+        if (this.scene.textures.exists(spriteKey)) {
+            console.log('Спрайт найден, создаем изображение:', spriteKey);
+            this.sprite = this.scene.add.image(centerX, centerY, spriteKey);
+            this.sprite.setDisplaySize(spriteWidth, spriteHeight);
+        } else {
+            console.log('Спрайт не найден, используем прямоугольник:', spriteKey);
+            this.sprite = this.scene.add.rectangle(
+                centerX, 
+                centerY, 
+                spriteWidth,
+                spriteHeight,
+                this.color
+            );
+        }
         
         // Добавляем рамку
         this.scene.add.rectangle(
@@ -487,7 +492,11 @@ class Unit {
         
         // Для врагов делаем спрайт темнее
         if (this.isEnemy) {
-            this.sprite.setFillStyle(0x666666);
+            if (this.sprite.setTint) {
+                this.sprite.setTint(0x666666);
+            } else {
+                this.sprite.setFillStyle(0x666666);
+            }
         }
         
         // Добавляем drag-and-drop для юнитов игрока
@@ -599,13 +608,25 @@ class Unit {
 
     createDamageEffect() {
         // Эффект повреждения - меняем цвет на красный и обратно
-        const originalColor = this.isEnemy ? 0x666666 : this.color;
-        this.sprite.setFillStyle(0xFF0000);
-        this.scene.time.delayedCall(100, () => {
-            if (this.sprite && this.sprite.scene) {
-                this.sprite.setFillStyle(originalColor);
-            }
-        });
+        if (this.sprite.setTint) {
+            // Это изображение - используем setTint
+            const originalTint = this.isEnemy ? 0x666666 : 0xFFFFFF;
+            this.sprite.setTint(0xFF0000);
+            this.scene.time.delayedCall(100, () => {
+                if (this.sprite && this.sprite.scene) {
+                    this.sprite.setTint(originalTint);
+                }
+            });
+        } else {
+            // Это прямоугольник - используем setFillStyle
+            const originalColor = this.isEnemy ? 0x666666 : this.color;
+            this.sprite.setFillStyle(0xFF0000);
+            this.scene.time.delayedCall(100, () => {
+                if (this.sprite && this.sprite.scene) {
+                    this.sprite.setFillStyle(originalColor);
+                }
+            });
+        }
     }
 
     createDamageNumber(damage) {
@@ -836,11 +857,21 @@ class Archer extends Unit {
 
     updateVisuals() {
         if (this.sprite) {
-            // Для прямоугольников используем setFillStyle
-            if (this.isEnemy) {
-                this.sprite.setFillStyle(0x666666);
+            // Проверяем тип спрайта и используем соответствующий метод
+            if (this.sprite.setTint) {
+                // Это изображение - используем setTint
+                if (this.isEnemy) {
+                    this.sprite.setTint(0x666666);
+                } else {
+                    this.sprite.setTint(0xFFFFFF);
+                }
             } else {
-                this.sprite.setFillStyle(this.color);
+                // Это прямоугольник - используем setFillStyle
+                if (this.isEnemy) {
+                    this.sprite.setFillStyle(0x666666);
+                } else {
+                    this.sprite.setFillStyle(this.color);
+                }
             }
         }
     }
@@ -874,11 +905,21 @@ class Warrior extends Unit {
 
     updateVisuals() {
         if (this.sprite) {
-            // Для прямоугольников используем setFillStyle
-            if (this.isEnemy) {
-                this.sprite.setFillStyle(0x666666);
+            // Проверяем тип спрайта и используем соответствующий метод
+            if (this.sprite.setTint) {
+                // Это изображение - используем setTint
+                if (this.isEnemy) {
+                    this.sprite.setTint(0x666666);
+                } else {
+                    this.sprite.setTint(0xFFFFFF);
+                }
             } else {
-                this.sprite.setFillStyle(this.color);
+                // Это прямоугольник - используем setFillStyle
+                if (this.isEnemy) {
+                    this.sprite.setFillStyle(0x666666);
+                } else {
+                    this.sprite.setFillStyle(this.color);
+                }
             }
         }
     }
@@ -1002,11 +1043,21 @@ class Healer extends Unit {
 
     updateVisuals() {
         if (this.sprite) {
-            // Для прямоугольников используем setFillStyle
-            if (this.isEnemy) {
-                this.sprite.setFillStyle(0x666666);
+            // Проверяем тип спрайта и используем соответствующий метод
+            if (this.sprite.setTint) {
+                // Это изображение - используем setTint
+                if (this.isEnemy) {
+                    this.sprite.setTint(0x666666);
+                } else {
+                    this.sprite.setTint(0xFFFFFF);
+                }
             } else {
-                this.sprite.setFillStyle(this.color);
+                // Это прямоугольник - используем setFillStyle
+                if (this.isEnemy) {
+                    this.sprite.setFillStyle(0x666666);
+                } else {
+                    this.sprite.setFillStyle(this.color);
+                }
             }
         }
     }
@@ -1187,11 +1238,21 @@ class Barbarian extends Unit {
 
     updateVisuals() {
         if (this.sprite) {
-            // Для прямоугольников используем setFillStyle
-            if (this.isEnemy) {
-                this.sprite.setFillStyle(0x666666);
+            // Проверяем тип спрайта и используем соответствующий метод
+            if (this.sprite.setTint) {
+                // Это изображение - используем setTint
+                if (this.isEnemy) {
+                    this.sprite.setTint(0x666666);
+                } else {
+                    this.sprite.setTint(0xFFFFFF);
+                }
             } else {
-                this.sprite.setFillStyle(this.color);
+                // Это прямоугольник - используем setFillStyle
+                if (this.isEnemy) {
+                    this.sprite.setFillStyle(0x666666);
+                } else {
+                    this.sprite.setFillStyle(this.color);
+                }
             }
         }
     }
@@ -1253,11 +1314,21 @@ class Mage extends Unit {
 
     updateVisuals() {
         if (this.sprite) {
-            // Для прямоугольников используем setFillStyle
-            if (this.isEnemy) {
-                this.sprite.setFillStyle(0x666666);
+            // Проверяем тип спрайта и используем соответствующий метод
+            if (this.sprite.setTint) {
+                // Это изображение - используем setTint
+                if (this.isEnemy) {
+                    this.sprite.setTint(0x666666);
+                } else {
+                    this.sprite.setTint(0xFFFFFF);
+                }
             } else {
-                this.sprite.setFillStyle(this.color);
+                // Это прямоугольник - используем setFillStyle
+                if (this.isEnemy) {
+                    this.sprite.setFillStyle(0x666666);
+                } else {
+                    this.sprite.setFillStyle(this.color);
+                }
             }
         }
     }
