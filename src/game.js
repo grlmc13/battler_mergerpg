@@ -2012,11 +2012,12 @@ class GameScene extends Phaser.Scene {
     spawnEnemies() {
         const { GRID_WIDTH, ENEMY_AREA_HEIGHT, UNIT_TYPES, STARTING_COINS } = window.gameConfig;
         
-        // Враг получает такой же бюджет, как у игрока в начале раунда
-        let enemyBudget = STARTING_COINS;
+        // Враг получает такой же бюджет, как у игрока в текущем раунде
+        // В раунде 1: 10 монет, в остальных раундах: 5 монет
+        let enemyBudget = this.currentRound === 1 ? STARTING_COINS : 5;
         
         console.log('=== СПАВН ВРАГОВ ===');
-        console.log('Бюджет врага:', enemyBudget, 'монет (как у игрока в начале)');
+        console.log('Бюджет врага:', enemyBudget, 'монет (как у игрока в раунде', this.currentRound, ')');
         
         // Типы юнитов, которые враг может купить (от дешевых к дорогим)
         const unitTypes = [
