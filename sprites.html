@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sprite Converter</title>
+</head>
+<body>
+    <h1>Sprite Converter</h1>
+    <p>Откройте консоль браузера (F12) и выполните код ниже для каждого спрайта:</p>
+    
+    <script>
+        // Функция для конвертации изображения в base64
+        function convertToBase64(imagePath) {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = this.width;
+                canvas.height = this.height;
+                ctx.drawImage(this, 0, 0);
+                const dataURL = canvas.toDataURL('image/png');
+                console.log('Base64 для', imagePath, ':', dataURL);
+            };
+            img.src = imagePath;
+        }
+        
+        // Конвертируем все спрайты
+        convertToBase64('src/assets/sprites/Elf_Archer.png');
+        convertToBase64('src/assets/sprites/Elf_Knight_Sword.png');
+        convertToBase64('src/assets/sprites/Dwarf Axe Warrior.png');
+        convertToBase64('src/assets/sprites/Dark Elves Healer Priestess.png');
+        convertToBase64('src/assets/sprites/Dark Elves Crystal Mage.png');
+    </script>
+</body>
+</html>

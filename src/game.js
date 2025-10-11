@@ -462,22 +462,16 @@ class Unit {
         
         console.log('Создаем спрайт:', spriteKey, 'для юнита:', this.constructor.name);
         
-        // Проверяем, загружен ли спрайт
-        if (this.scene.textures.exists(spriteKey)) {
-            this.sprite = this.scene.add.image(centerX, centerY, spriteKey);
-            this.sprite.setDisplaySize(spriteWidth, spriteHeight);
-            console.log('Спрайт создан успешно:', spriteKey);
-        } else {
-            console.error('Спрайт не найден:', spriteKey, 'используем прямоугольник');
-            // Fallback к прямоугольнику если спрайт не загружен
-            this.sprite = this.scene.add.rectangle(
-                centerX, 
-                centerY, 
-                spriteWidth,
-                spriteHeight,
-                this.color
-            );
-        }
+        // Временно отключаем спрайты из-за CORS проблем
+        // TODO: Включить спрайты когда будет HTTP сервер
+        console.log('Используем прямоугольник вместо спрайта:', spriteKey);
+        this.sprite = this.scene.add.rectangle(
+            centerX, 
+            centerY, 
+            spriteWidth,
+            spriteHeight,
+            this.color
+        );
         
         // Добавляем рамку
         this.scene.add.rectangle(
