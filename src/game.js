@@ -1509,6 +1509,9 @@ class GameScene extends Phaser.Scene {
         this.createShop();
         this.createRoundDisplay();
         
+        // Глобальный обработчик кликов по полю для размещения юнитов
+        this.input.on('pointerdown', this.handleFieldClick, this);
+        
         console.log('Игровая сцена создана');
         console.log('Конфигурация:', window.gameConfig.VERSION, 'Поле:', window.gameConfig.GRID_WIDTH + 'x' + window.gameConfig.GRID_HEIGHT);
     }
@@ -1804,26 +1807,27 @@ class GameScene extends Phaser.Scene {
                 padding: { x: 10, y: 5 }
             }).setOrigin(0.5);
             
-            console.log('Режим размещения активирован');
+            console.log('Юнит выбран, ожидаем клик по полю');
             
-            // Используем событие вместо update
-            this.input.once('pointerdown', this.handlePlacement, this);
+            // НЕ активируем режим размещения сразу - ждем клик по полю
         } else {
             console.log('Недостаточно монет!');
         }
     }
 
-    handlePlacement(pointer) {
-        if (!this.selectedUnitType) {
-            console.log('Нет выбранного юнита');
+
+    /**
+     * Обработчик кликов по полю для размещения юнитов
+     */
+    handleFieldClick(pointer) {
+        // Проверяем, что выбран юнит и клик не по магазину
+        if (!this.selectedUnitType || pointer.y > 700) {
             return;
         }
         
-        // Проверяем, что клик НЕ по магазину (магазин теперь внизу, y > 700)
-        if (pointer.y > 700) {
-            console.log('Клик по магазину - игнорируем');
-            // Возвращаем обработчик клика
-            this.input.once('pointerdown', this.handlePlacement, this);
+        // Проверяем, что не идет бой
+        if (this.isBattleActive) {
+            console.log('Бой активен, нельзя размещать юнитов');
             return;
         }
         
@@ -1865,7 +1869,6 @@ class GameScene extends Phaser.Scene {
                     this.selectedCardIndex = null;
                 } else {
                     console.log('Мердж не удался. Попробуйте еще раз.');
-                    this.input.once('pointerdown', this.handlePlacement, this);
                 }
             } else {
                 // ОБЫЧНОЕ РАЗМЕЩЕНИЕ
@@ -1885,8 +1888,6 @@ class GameScene extends Phaser.Scene {
             }
         } else {
             console.log('Нельзя разместить в этой позиции. Попробуйте еще раз.');
-            // Если не получилось разместить - даем еще одну попытку
-            this.input.once('pointerdown', this.handlePlacement, this);
         }
     }
 
@@ -2696,6 +2697,14 @@ class GameScene extends Phaser.Scene {
         
         if (placementResult.canPlace) {
             if (placementResult.isMerge) {
+                // Проверяем, что не мерджим юнит сам с собой
+                if (placementResult.existingUnit === this.draggedUnit) {
+                    console.log('Нельзя мерджить юнит сам с собой');
+                    this.isDragging = false;
+                    this.draggedUnit = null;
+                    return;
+                }
+                
                 // МЕРДЖ с существующим юнитом
                 console.log('Выполняем мердж');
                 const success = placementResult.existingUnit.merge(this.draggedUnit.unitType);
