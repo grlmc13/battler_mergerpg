@@ -178,6 +178,23 @@ class GridSystem {
     }
 
     getGridPosition(worldX, worldY) {
+        // Проверяем валидность входных параметров
+        if (isNaN(worldX) || isNaN(worldY) || 
+            typeof worldX !== 'number' || typeof worldY !== 'number') {
+            console.log('getGridPosition: невалидные координаты:', worldX, worldY);
+            return { x: NaN, y: NaN };
+        }
+        
+        // Проверяем валидность gridOffset и cellSize
+        if (isNaN(this.gridOffsetX) || isNaN(this.gridOffsetY) || isNaN(this.cellSize)) {
+            console.log('getGridPosition: невалидные grid параметры:', {
+                gridOffsetX: this.gridOffsetX,
+                gridOffsetY: this.gridOffsetY,
+                cellSize: this.cellSize
+            });
+            return { x: NaN, y: NaN };
+        }
+        
         const gridX = Math.floor((worldX - this.gridOffsetX) / this.cellSize);
         const gridY = Math.floor((worldY - this.gridOffsetY) / this.cellSize);
         
@@ -229,6 +246,75 @@ class GridSystem {
         }
         
         return true;
+    }
+
+    /**
+     * Получает юнита на указанной позиции сетки
+     * @param {number} gridX - X координата в сетке
+     * @param {number} gridY - Y координата в сетке
+     * @returns {Unit|null} - юнит на позиции или null
+     */
+    getUnitAt(gridX, gridY) {
+        // Проверяем на NaN и невалидные значения
+        if (isNaN(gridX) || isNaN(gridY) || 
+            gridX < 0 || gridY < 0 || 
+            gridX >= this.gridWidth || 
+            gridY >= this.gridHeight) {
+            return null;
+        }
+        
+        return this.grid[gridY][gridX];
+    }
+
+    /**
+     * Проверяет, можно ли разместить юнита (включая мердж)
+     * @param {number} gridX - X координата в сетке
+     * @param {number} gridY - Y координата в сетке
+     * @param {Object} size - размер юнита
+     * @param {string} unitType - тип юнита
+     * @param {boolean} isEnemy - является ли врагом
+     * @returns {Object} - {canPlace: boolean, isMerge: boolean, existingUnit: Unit|null}
+     */
+    canPlaceOrMerge(gridX, gridY, size, unitType, isEnemy) {
+        // Проверяем границы
+        if (gridX < 0 || gridY < 0 || 
+            gridX + size.width > this.gridWidth || 
+            gridY + size.height > this.gridHeight) {
+            return {canPlace: false, isMerge: false, existingUnit: null};
+        }
+        
+        // Проверяем область размещения
+        const playerAreaStart = this.gridHeight / 2;
+        if (!isEnemy && gridY < playerAreaStart) {
+            return {canPlace: false, isMerge: false, existingUnit: null};
+        }
+        if (isEnemy && gridY + size.height > playerAreaStart) {
+            return {canPlace: false, isMerge: false, existingUnit: null};
+        }
+        
+        // Проверяем, есть ли юнит на позиции
+        const existingUnit = this.getUnitAt(gridX, gridY);
+        
+        if (existingUnit) {
+            // Проверяем возможность мерджа
+            if (!existingUnit.isEnemy && !isEnemy && 
+                existingUnit.unitType === unitType && 
+                existingUnit.mergeLevel < 3) {
+                return {canPlace: true, isMerge: true, existingUnit: existingUnit};
+            }
+            return {canPlace: false, isMerge: false, existingUnit: existingUnit};
+        }
+        
+        // Проверяем, что все клетки свободны
+        for (let y = gridY; y < gridY + size.height; y++) {
+            for (let x = gridX; x < gridX + size.width; x++) {
+                if (this.grid[y][x] !== null) {
+                    return {canPlace: false, isMerge: false, existingUnit: null};
+                }
+            }
+        }
+        
+        return {canPlace: true, isMerge: false, existingUnit: null};
     }
 
     canPlaceEnemyUnit(gridX, gridY, size) {
@@ -338,6 +424,13 @@ class Unit {
         this.size = size;
         this.color = color;
         
+        // Мердж-система
+        this.mergeLevel = 0;        // Уровень мерджа (0-3)
+        this.mergedStars = [];      // Массив объектов-звездочек
+        this.unitType = null;       // Тип юнита (ARCHER, WARRIOR и тд)
+        this.baseHp = this.maxHp;   // Базовое HP для расчета бонусов
+        this.baseDamage = this.damage; // Базовый урон для расчета бонусов
+        
         this.sprite = null;
         this.hpBar = null;
         this.lastAttackTime = 0;
@@ -382,6 +475,23 @@ class Unit {
         
         if (this.isEnemy) {
             this.sprite.setFillStyle(0x666666);
+        }
+        
+        // Добавляем drag-and-drop для юнитов игрока
+        if (!this.isEnemy) {
+            console.log('Добавляем drag-and-drop для юнита:', this.constructor.name);
+            this.sprite.setInteractive({ draggable: true })
+                .on('dragstart', (pointer) => {
+                    console.log('dragstart событие для:', this.constructor.name);
+                    this.scene.onUnitDragStart(this, pointer);
+                })
+                .on('drag', (pointer, dragX, dragY) => {
+                    this.scene.onUnitDrag(pointer);
+                })
+                .on('dragend', (pointer, dragX, dragY) => {
+                    console.log('dragend событие для:', this.constructor.name);
+                    this.scene.onUnitDragEnd(this, pointer, dragX, dragY);
+                });
         }
     }
 
@@ -526,6 +636,110 @@ class Unit {
         const dy = Math.abs(this.gridY - otherUnit.gridY);
         return Math.max(dx, dy); // Используем "шахматное" расстояние
     }
+
+    // ============================================================================
+    // МЕРДЖ-СИСТЕМА
+    // ============================================================================
+    
+    /**
+     * Объединяет юнита с другим юнитом того же типа
+     * @param {string} unitType - тип юнита для мерджа
+     */
+    merge(unitType) {
+        if (this.mergeLevel >= 3) {
+            console.log('Максимальный уровень мерджа достигнут');
+            return false;
+        }
+        
+        if (this.unitType !== unitType) {
+            console.log('Нельзя мерджить разные типы юнитов');
+            return false;
+        }
+        
+        this.mergeLevel++;
+        this.applyMergeBonus();
+        this.createMergeStars();
+        
+        console.log(`${this.constructor.name} мерджнут! Уровень: ${this.mergeLevel}`);
+        return true;
+    }
+    
+    /**
+     * Применяет бонусы от мерджа (+20 HP, +5 урон за уровень)
+     */
+    applyMergeBonus() {
+        const hpBonus = this.mergeLevel * 20;
+        const damageBonus = this.mergeLevel * 5;
+        
+        this.maxHp = this.baseHp + hpBonus;
+        this.damage = this.baseDamage + damageBonus;
+        
+        // Восстанавливаем HP до максимума при мердже
+        this.hp = this.maxHp;
+        
+        // Обновляем HP бар
+        if (this.hpBar) {
+            this.updateHpBar();
+        }
+        
+        console.log(`Бонусы мерджа: +${hpBonus} HP, +${damageBonus} урон`);
+    }
+    
+    /**
+     * Создает визуальные звездочки на юните
+     */
+    createMergeStars() {
+        // Удаляем старые звездочки
+        this.mergedStars.forEach(star => {
+            if (star && star.destroy) {
+                star.destroy();
+            }
+        });
+        this.mergedStars = [];
+        
+        if (this.mergeLevel === 0) return;
+        
+        // Позиция для звездочек (на юните)
+        const startX = this.scene.gridSystem.gridOffsetX + (this.gridX * this.scene.gridSystem.cellSize);
+        const startY = this.scene.gridSystem.gridOffsetY + (this.gridY * this.scene.gridSystem.cellSize);
+        const centerX = startX + (this.size.width * this.scene.gridSystem.cellSize / 2);
+        const centerY = startY + (this.size.height * this.scene.gridSystem.cellSize / 2);
+        
+        // Создаем звездочки в ряд на юните
+        const starSpacing = 12;
+        const totalWidth = (this.mergeLevel - 1) * starSpacing;
+        const startStarX = centerX - totalWidth / 2;
+        const starY = centerY; // На центре юнита
+        
+        for (let i = 0; i < this.mergeLevel; i++) {
+            const starX = startStarX + (i * starSpacing);
+            const star = this.scene.add.star(starX, starY, 6, 4, 2, 0xFFD700);
+            this.mergedStars.push(star);
+        }
+    }
+    
+    /**
+     * Обновляет позиции звездочек (при перемещении юнита)
+     */
+    updateMergeStars() {
+        if (this.mergedStars.length === 0) return;
+        
+        const startX = this.scene.gridSystem.gridOffsetX + (this.gridX * this.scene.gridSystem.cellSize);
+        const startY = this.scene.gridSystem.gridOffsetY + (this.gridY * this.scene.gridSystem.cellSize);
+        const centerX = startX + (this.size.width * this.scene.gridSystem.cellSize / 2);
+        const centerY = startY + (this.size.height * this.scene.gridSystem.cellSize / 2);
+        
+        const starSpacing = 12;
+        const totalWidth = (this.mergeLevel - 1) * starSpacing;
+        const startStarX = centerX - totalWidth / 2;
+        
+        this.mergedStars.forEach((star, i) => {
+            if (star && star.setPosition) {
+                const starX = startStarX + (i * starSpacing);
+                star.setPosition(starX, centerY);
+            }
+        });
+    }
 }
 
 // Лучник
@@ -533,12 +747,17 @@ class Archer extends Unit {
     constructor(scene, gridX, gridY, isEnemy = false) {
         super(scene, gridX, gridY, isEnemy, { width: 1, height: 1 }, 0x4A90E2);
         
+        this.unitType = 'ARCHER';
         this.maxHp = 30;
         this.hp = this.maxHp;
         this.damage = 8;
         this.attackSpeed = 0.5;
         this.baseAttackSpeed = 0.5; // Запоминаем базовую скорость для баффов
         this.range = 10; // Увеличен радиус
+        
+        // Сохраняем базовые значения для мерджа
+        this.baseHp = this.maxHp;
+        this.baseDamage = this.damage;
         
         this.updateVisuals();
     }
@@ -559,6 +778,7 @@ class Warrior extends Unit {
     constructor(scene, gridX, gridY, isEnemy = false) {
         super(scene, gridX, gridY, isEnemy, { width: 1, height: 2 }, 0xE24A4A);
         
+        this.unitType = 'WARRIOR';
         this.maxHp = 50;
         this.hp = this.maxHp;
         this.damage = 12;
@@ -571,6 +791,10 @@ class Warrior extends Unit {
         this.battleCryBonus = 0.25; // 25% ускорение атаки
         this.battleCryActive = false;
         this.battleCryEffect = null;
+        
+        // Сохраняем базовые значения для мерджа
+        this.baseHp = this.maxHp;
+        this.baseDamage = this.damage;
         
         this.updateVisuals();
     }
@@ -685,6 +909,7 @@ class Healer extends Unit {
     constructor(scene, gridX, gridY, isEnemy = false) {
         super(scene, gridX, gridY, isEnemy, { width: 1, height: 1 }, 0x32CD32);
         
+        this.unitType = 'HEALER';
         this.maxHp = 25;
         this.hp = this.maxHp;
         this.damage = 3;
@@ -693,6 +918,10 @@ class Healer extends Unit {
         this.range = 10; // Неограниченный радиус атаки (как у всех юнитов)
         this.healRange = 2; // Ограниченный радиус лечения
         this.healAmount = 8; // Количество HP за лечение
+        
+        // Сохраняем базовые значения для мерджа
+        this.baseHp = this.maxHp;
+        this.baseDamage = this.damage;
         
         this.updateVisuals();
     }
@@ -863,6 +1092,7 @@ class Barbarian extends Unit {
     constructor(scene, gridX, gridY, isEnemy = false) {
         super(scene, gridX, gridY, isEnemy, { width: 2, height: 1 }, 0xFF8C00);
         
+        this.unitType = 'BARBARIAN';
         this.maxHp = 60;
         this.hp = this.maxHp;
         this.damage = 15;
@@ -870,6 +1100,10 @@ class Barbarian extends Unit {
         this.baseAttackSpeed = 1.5; // Запоминаем базовую скорость для баффов
         this.range = 10;
         this.hasTaunt = true; // СПОСОБНОСТЬ: Провокация
+        
+        // Сохраняем базовые значения для мерджа
+        this.baseHp = this.maxHp;
+        this.baseDamage = this.damage;
         
         this.updateVisuals();
         this.createTauntEffect(); // Визуальный эффект провокации
@@ -924,6 +1158,7 @@ class Mage extends Unit {
     constructor(scene, gridX, gridY, isEnemy = false) {
         super(scene, gridX, gridY, isEnemy, { width: 2, height: 2 }, 0x9B4AE2);
         
+        this.unitType = 'MAGE';
         this.maxHp = 40;
         this.hp = this.maxHp;
         this.damage = 8; // Уменьшаем урон, так как бьет по 3 целям
@@ -931,6 +1166,10 @@ class Mage extends Unit {
         this.baseAttackSpeed = 2.5; // Запоминаем базовую скорость для баффов
         this.range = 10; // Увеличен радиус
         this.maxTargets = 3; // Максимум 3 цели
+        
+        // Сохраняем базовые значения для мерджа
+        this.baseHp = this.maxHp;
+        this.baseDamage = this.damage;
         
         this.updateVisuals();
     }
@@ -1229,7 +1468,15 @@ class GameScene extends Phaser.Scene {
         this.roundResults = []; // Результаты раундов (true = победа, false = поражение)
         this.roundText = null; // Текст с номером раунда
         this.resultsText = null; // Текст с результатами раундов
-        this.enemiesKilledLastRound = 0; // Количество убитых врагов в прошлом раунде
+        
+        // Drag-and-Drop состояние
+        this.isDragging = false;           // Флаг перетаскивания
+        this.dragGhost = null;             // Призрачная копия юнита
+        this.dragGhostElements = [];       // Элементы призрака (иконка, рамка и тд)
+        this.highlightedCells = [];        // Подсвеченные клетки
+        this.dragStartX = 0;               // Начальная позиция для отмены
+        this.dragStartY = 0;
+        this.draggedUnit = null;           // Перетаскиваемый юнит
     }
 
     init() {
@@ -1248,7 +1495,6 @@ class GameScene extends Phaser.Scene {
         this.roundResults = [];
         this.roundText = null;
         this.resultsText = null;
-        this.enemiesKilledLastRound = 0;
         
         console.log('=== ИГРА СБРОШЕНА ===');
     }
@@ -1349,9 +1595,18 @@ class GameScene extends Phaser.Scene {
             
             // Создаем основную карточку
             const card = this.add.rectangle(x, shopY, 80, 100, unitData.color)
-                .setInteractive()
+                .setInteractive({ draggable: true })
                 .on('pointerdown', () => {
                     this.selectUnit(type, index);
+                })
+                .on('dragstart', (pointer, dragX, dragY) => {
+                    this.onDragStart(type, index, pointer);
+                })
+                .on('drag', (pointer, dragX, dragY) => {
+                    this.onDrag(pointer, dragX, dragY);
+                })
+                .on('dragend', (pointer) => {
+                    this.onDragEnd(pointer, type, index);
                 });
 
             // Иконки юнитов - соответствуют реальным размерам
@@ -1581,20 +1836,53 @@ class GameScene extends Phaser.Scene {
         const gridPos = this.gridSystem.getGridPosition(pointer.x, pointer.y);
         console.log('Клик по позиции:', pointer.x, pointer.y, '-> сетка:', gridPos);
         
-        if (this.gridSystem.canPlaceUnit(gridPos.x, gridPos.y, this.selectedUnitData.size)) {
-            console.log('Размещаем юнит в позиции:', gridPos);
-            this.placeUnit(this.selectedUnitType, gridPos.x, gridPos.y);
-            this.economySystem.spendCoins(this.selectedUnitData.cost);
-            this.updateCoinsDisplay();
-            
-            // Удаляем карточку из магазина после успешной покупки
-            if (this.selectedCardIndex !== null) {
-                this.removeCardFromShop(this.selectedCardIndex);
+        // Проверяем возможность размещения или мерджа
+        const placementResult = this.gridSystem.canPlaceOrMerge(
+            gridPos.x, 
+            gridPos.y, 
+            this.selectedUnitData.size, 
+            this.selectedUnitType, 
+            false // не враг
+        );
+        
+        if (placementResult.canPlace) {
+            if (placementResult.isMerge) {
+                // МЕРДЖ
+                console.log('Мердж юнита!', this.selectedUnitType);
+                const success = placementResult.existingUnit.merge(this.selectedUnitType);
+                
+                if (success) {
+                    this.economySystem.spendCoins(this.selectedUnitData.cost);
+                    this.updateCoinsDisplay();
+                    
+                    // Удаляем карточку из магазина
+                    if (this.selectedCardIndex !== null) {
+                        this.removeCardFromShop(this.selectedCardIndex);
+                    }
+                    
+                    this.selectedUnitType = null;
+                    this.selectedUnitData = null;
+                    this.selectedCardIndex = null;
+                } else {
+                    console.log('Мердж не удался. Попробуйте еще раз.');
+                    this.input.once('pointerdown', this.handlePlacement, this);
+                }
+            } else {
+                // ОБЫЧНОЕ РАЗМЕЩЕНИЕ
+                console.log('Размещаем юнит в позиции:', gridPos);
+                this.placeUnit(this.selectedUnitType, gridPos.x, gridPos.y);
+                this.economySystem.spendCoins(this.selectedUnitData.cost);
+                this.updateCoinsDisplay();
+                
+                // Удаляем карточку из магазина после успешной покупки
+                if (this.selectedCardIndex !== null) {
+                    this.removeCardFromShop(this.selectedCardIndex);
+                }
+                
+                this.selectedUnitType = null;
+                this.selectedUnitData = null;
+                this.selectedCardIndex = null;
             }
-            
-            this.selectedUnitType = null;
-            this.selectedUnitData = null;
-            this.selectedCardIndex = null;
         } else {
             console.log('Нельзя разместить в этой позиции. Попробуйте еще раз.');
             // Если не получилось разместить - даем еще одну попытку
@@ -1726,6 +2014,20 @@ class GameScene extends Phaser.Scene {
                         enemyBudget -= selected.data.cost;
                         placed = true;
                         
+                        // Случайный мердж для врага (30% шанс)
+                        if (Math.random() < 0.3 && enemy.mergeLevel < 3) {
+                            const mergeCount = Math.floor(Math.random() * (3 - enemy.mergeLevel)) + 1;
+                            const mergeCost = mergeCount * selected.data.cost;
+                            
+                            if (enemyBudget >= mergeCost) {
+                                for (let i = 0; i < mergeCount; i++) {
+                                    enemy.merge(selected.type);
+                                }
+                                enemyBudget -= mergeCost;
+                                console.log(`Враг мерджнул ${selected.data.name} ${mergeCount} раз! Уровень: ${enemy.mergeLevel}`);
+                            }
+                        }
+                        
                         console.log(`Враг купил ${selected.data.name} за ${selected.data.cost} монет. Остаток: ${enemyBudget}`);
                     }
                 }
@@ -1755,11 +2057,7 @@ class GameScene extends Phaser.Scene {
         this.roundResults.push(victory);
         console.log(`Раунд ${this.currentRound} завершен. Результат: ${victory ? 'Победа' : 'Поражение'}`);
         
-        // Считаем убитых врагов в этом раунде
-        const killedEnemies = this.enemyUnits.filter(unit => unit.isDead).length;
-        this.enemiesKilledLastRound = killedEnemies;
-        
-        console.log(`Убито врагов в этом раунде: ${killedEnemies}`);
+        // Убрано подсчет убитых врагов (больше не нужен для баланса)
         
         // Подсчитываем победы и поражения
         const playerWins = this.roundResults.filter(result => result).length;
@@ -1806,16 +2104,12 @@ class GameScene extends Phaser.Scene {
             this.roundText.setText(`РАУНД ${this.currentRound}/${this.maxRounds}`);
         }
         
-        // Даем монеты за новый раунд: фиксированная сумма + бонус за убийства
+        // Даем монеты за новый раунд: только фиксированная сумма (убрали бонус за убийства для баланса)
         const baseReward = 5; // Фиксированное количество монет за раунд
-        const killBonus = this.enemiesKilledLastRound; // По 1 монете за каждого убитого врага
-        const totalReward = baseReward + killBonus;
         
-        this.economySystem.addCoins(totalReward);
+        this.economySystem.addCoins(baseReward);
         console.log(`=== НАЧАЛО РАУНДА ${this.currentRound} ===`);
         console.log(`Базовая награда: ${baseReward} монет`);
-        console.log(`Бонус за ${killBonus} убитых врагов: ${killBonus} монет`);
-        console.log(`Всего получено: ${totalReward} монет`);
         console.log(`Текущий баланс: ${this.economySystem.getCoins()} монет`);
         
         this.updateCoinsDisplay();
@@ -1868,12 +2162,43 @@ class GameScene extends Phaser.Scene {
                 // Заново размещаем юнита на сетке (в той же позиции)
                 this.gridSystem.placeUnit(unit.gridX, unit.gridY, unit);
                 
+                // Пересоздаем звездочки мерджа если они есть
+                if (unit.mergeLevel > 0) {
+                    unit.createMergeStars();
+                }
+                
+                // Добавляем drag-and-drop обработчики заново
+                unit.sprite.setInteractive({ draggable: true })
+                    .on('dragstart', (pointer) => {
+                        this.onUnitDragStart(unit, pointer);
+                    })
+                    .on('drag', (pointer, dragX, dragY) => {
+                        this.onUnitDrag(pointer);
+                    })
+                    .on('dragend', (pointer, dragX, dragY) => {
+                        this.onUnitDragEnd(unit, pointer, dragX, dragY);
+                    });
+                
                 console.log(`Воскрешен юнит игрока: ${unit.constructor.name} в позиции (${unit.gridX}, ${unit.gridY})`);
             } else {
                 // ЛЕЧЕНИЕ выживших юнитов
                 const oldHp = unit.hp;
                 unit.hp = unit.maxHp;
                 console.log(`Вылечен юнит игрока: ${unit.constructor.name} (${oldHp} -> ${unit.hp} HP)`);
+                
+                // Убеждаемся, что drag-and-drop обработчики есть
+                if (!unit.sprite.input || !unit.sprite.input.draggable) {
+                    unit.sprite.setInteractive({ draggable: true })
+                        .on('dragstart', (pointer) => {
+                            this.onUnitDragStart(unit, pointer);
+                        })
+                        .on('drag', (pointer, dragX, dragY) => {
+                            this.onUnitDrag(pointer);
+                        })
+                        .on('dragend', (pointer, dragX, dragY) => {
+                            this.onUnitDragEnd(unit, pointer, dragX, dragY);
+                        });
+                }
             }
             
             // Обновляем HP bar для всех юнитов
@@ -1915,6 +2240,11 @@ class GameScene extends Phaser.Scene {
                 
                 // Заново размещаем юнита на сетке (в той же позиции)
                 this.gridSystem.placeUnit(unit.gridX, unit.gridY, unit);
+                
+                // Пересоздаем звездочки мерджа если они есть
+                if (unit.mergeLevel > 0) {
+                    unit.createMergeStars();
+                }
                 
                 console.log(`Воскрешен юнит врага: ${unit.constructor.name} в позиции (${unit.gridX}, ${unit.gridY})`);
             } else {
@@ -2011,6 +2341,372 @@ class GameScene extends Phaser.Scene {
         this.playerUnits = this.playerUnits.filter(unit => unit.isAlive());
         this.enemyUnits = this.enemyUnits.filter(unit => unit.isAlive());
         this.gridSystem.clearDeadUnits();
+    }
+
+    // ============================================================================
+    // DRAG-AND-DROP СИСТЕМА
+    // ============================================================================
+    
+    /**
+     * Начало перетаскивания юнита из витрины
+     */
+    onDragStart(unitType, cardIndex, pointer) {
+        if (this.isBattleActive) return;
+        
+        const unitData = window.gameConfig.UNIT_TYPES[unitType];
+        if (!this.economySystem.canAfford(unitData.cost)) return;
+        
+        this.isDragging = true;
+        this.selectedUnitType = unitType;
+        this.selectedUnitData = unitData;
+        this.selectedCardIndex = cardIndex;
+        
+        // Создаем призрачную копию юнита
+        this.createDragGhost(unitType, pointer.x, pointer.y);
+        
+        console.log('Начало перетаскивания:', unitData.name);
+    }
+    
+    /**
+     * Создает призрачную копию юнита для перетаскивания
+     */
+    createDragGhost(unitType, x, y) {
+        const unitData = window.gameConfig.UNIT_TYPES[unitType];
+        const size = unitData.size;
+        const cellSize = this.gridSystem.cellSize;
+        
+        // Полупрозрачный прямоугольник размером с юнита
+        this.dragGhost = this.add.rectangle(
+            x, y, 
+            size.width * cellSize, 
+            size.height * cellSize, 
+            unitData.color, 
+            0.5 // Полупрозрачность
+        );
+        this.dragGhost.setDepth(1000); // Поверх всего
+        
+        // Рамка
+        const border = this.add.rectangle(
+            x, y,
+            size.width * cellSize,
+            size.height * cellSize,
+            0xFFFFFF, 0
+        ).setStrokeStyle(2, 0xFFFFFF);
+        border.setDepth(1001);
+        
+        this.dragGhostElements.push(this.dragGhost, border);
+    }
+    
+    /**
+     * Обновление позиции призрака и подсветка клеток
+     */
+    onDrag(pointer, dragX, dragY) {
+        if (!this.isDragging) return;
+        
+        // Обновляем позицию призрака
+        this.dragGhostElements.forEach(elem => {
+            elem.setPosition(pointer.x, pointer.y);
+        });
+        
+        // Получаем позицию на сетке
+        const gridPos = this.gridSystem.getGridPosition(pointer.x, pointer.y);
+        
+        // Обновляем подсветку клеток
+        this.updateCellHighlight(gridPos.x, gridPos.y);
+    }
+    
+    /**
+     * Подсветка валидных/невалидных клеток
+     */
+    updateCellHighlight(gridX, gridY) {
+        // Удаляем старую подсветку
+        this.highlightedCells.forEach(cell => cell.destroy());
+        this.highlightedCells = [];
+        
+        const size = this.selectedUnitData.size;
+        const placementResult = this.gridSystem.canPlaceOrMerge(
+            gridX, gridY, size, this.selectedUnitType, false
+        );
+        
+        // Подсвечиваем клетки
+        for (let y = gridY; y < gridY + size.height; y++) {
+            for (let x = gridX; x < gridX + size.width; x++) {
+                const cellX = this.gridSystem.gridOffsetX + (x * this.gridSystem.cellSize) + this.gridSystem.cellSize / 2;
+                const cellY = this.gridSystem.gridOffsetY + (y * this.gridSystem.cellSize) + this.gridSystem.cellSize / 2;
+                
+                const color = placementResult.canPlace ? 0x00FF00 : 0xFF0000;
+                const highlight = this.add.rectangle(
+                    cellX, cellY,
+                    this.gridSystem.cellSize,
+                    this.gridSystem.cellSize,
+                    color, 0.3
+                );
+                highlight.setDepth(500);
+                this.highlightedCells.push(highlight);
+            }
+        }
+        
+        // Если возможен мердж, добавляем специальный индикатор
+        if (placementResult.isMerge) {
+            const mergeIcon = this.add.star(
+                this.highlightedCells[0].x,
+                this.highlightedCells[0].y,
+                5, 8, 4, 0xFFD700
+            );
+            mergeIcon.setDepth(501);
+            this.highlightedCells.push(mergeIcon);
+        }
+    }
+    
+    /**
+     * Завершение перетаскивания
+     */
+    onDragEnd(pointer, unitType, cardIndex) {
+        if (!this.isDragging) return;
+        
+        // Удаляем призрак и подсветку
+        this.dragGhostElements.forEach(elem => elem.destroy());
+        this.dragGhostElements = [];
+        this.highlightedCells.forEach(cell => cell.destroy());
+        this.highlightedCells = [];
+        
+        const gridPos = this.gridSystem.getGridPosition(pointer.x, pointer.y);
+        
+        // Проверяем, можем ли разместить
+        const placementResult = this.gridSystem.canPlaceOrMerge(
+            gridPos.x, gridPos.y,
+            this.selectedUnitData.size,
+            this.selectedUnitType,
+            false
+        );
+        
+        if (placementResult.canPlace) {
+            if (placementResult.isMerge) {
+                // МЕРДЖ
+                placementResult.existingUnit.merge(this.selectedUnitType);
+            } else {
+                // РАЗМЕЩЕНИЕ
+                this.placeUnit(this.selectedUnitType, gridPos.x, gridPos.y);
+            }
+            
+            this.economySystem.spendCoins(this.selectedUnitData.cost);
+            this.updateCoinsDisplay();
+            this.removeCardFromShop(cardIndex);
+        }
+        
+        // Сброс состояния
+        this.isDragging = false;
+        this.selectedUnitType = null;
+        this.selectedUnitData = null;
+        this.selectedCardIndex = null;
+    }
+    
+    /**
+     * Начало перетаскивания размещенного юнита
+     */
+    onUnitDragStart(unit, pointer) {
+        if (this.isBattleActive) {
+            console.log('Бой активен, нельзя перетаскивать юнитов');
+            return;
+        }
+        
+        console.log('onUnitDragStart вызван для:', unit.constructor.name);
+        
+        this.isDragging = true;
+        this.draggedUnit = unit;
+        
+        // Создаем призрачную копию юнита
+        this.createUnitDragGhost(unit, pointer.x, pointer.y);
+        
+        console.log('Начало перетаскивания юнита:', unit.constructor.name);
+    }
+    
+    /**
+     * Создает призрачную копию размещенного юнита
+     */
+    createUnitDragGhost(unit, x, y) {
+        const size = unit.size;
+        const cellSize = this.gridSystem.cellSize;
+        
+        // Полупрозрачный прямоугольник размером с юнита
+        this.dragGhost = this.add.rectangle(
+            x, y, 
+            size.width * cellSize, 
+            size.height * cellSize, 
+            unit.color, 
+            0.5 // Полупрозрачность
+        );
+        this.dragGhost.setDepth(1000); // Поверх всего
+        
+        // Рамка
+        const border = this.add.rectangle(
+            x, y,
+            size.width * cellSize,
+            size.height * cellSize,
+            0xFFFFFF, 0
+        ).setStrokeStyle(2, 0xFFFFFF);
+        border.setDepth(1001);
+        
+        this.dragGhostElements.push(this.dragGhost, border);
+    }
+    
+    /**
+     * Обновление позиции призрака юнита
+     */
+    onUnitDrag(pointer) {
+        if (!this.isDragging || !this.draggedUnit) {
+            console.log('onUnitDrag: не перетаскиваем или нет юнита');
+            return;
+        }
+        
+        console.log('onUnitDrag: обновляем позицию призрака');
+        
+        // Обновляем позицию призрака
+        this.dragGhostElements.forEach(elem => {
+            elem.setPosition(pointer.x, pointer.y);
+        });
+        
+        // Получаем позицию на сетке
+        console.log('onUnitDrag координаты:', pointer.x, pointer.y);
+        const gridPos = this.gridSystem.getGridPosition(pointer.x, pointer.y);
+        console.log('onUnitDrag gridPos:', gridPos);
+        
+        // Проверяем валидность координат
+        if (isNaN(gridPos.x) || isNaN(gridPos.y)) {
+            console.log('onUnitDrag: невалидные координаты, пропускаем');
+            return;
+        }
+        
+        // Обновляем подсветку клеток
+        this.updateUnitCellHighlight(gridPos.x, gridPos.y);
+    }
+    
+    /**
+     * Подсветка клеток для перемещения юнита
+     */
+    updateUnitCellHighlight(gridX, gridY) {
+        // Удаляем старую подсветку
+        this.highlightedCells.forEach(cell => cell.destroy());
+        this.highlightedCells = [];
+        
+        // Проверяем валидность координат
+        if (isNaN(gridX) || isNaN(gridY)) {
+            return;
+        }
+        
+        const size = this.draggedUnit.size;
+        const placementResult = this.gridSystem.canPlaceOrMerge(
+            gridX, gridY, size, this.draggedUnit.unitType, false
+        );
+        
+        // Подсвечиваем клетки
+        for (let y = gridY; y < gridY + size.height; y++) {
+            for (let x = gridX; x < gridX + size.width; x++) {
+                const cellX = this.gridSystem.gridOffsetX + (x * this.gridSystem.cellSize) + this.gridSystem.cellSize / 2;
+                const cellY = this.gridSystem.gridOffsetY + (y * this.gridSystem.cellSize) + this.gridSystem.cellSize / 2;
+                
+                const color = placementResult.canPlace ? 0x00FF00 : 0xFF0000;
+                const highlight = this.add.rectangle(
+                    cellX, cellY,
+                    this.gridSystem.cellSize,
+                    this.gridSystem.cellSize,
+                    color, 0.3
+                );
+                highlight.setDepth(500);
+                this.highlightedCells.push(highlight);
+            }
+        }
+        
+        // Если возможен мердж, добавляем специальный индикатор
+        if (placementResult.isMerge) {
+            const mergeIcon = this.add.star(
+                this.highlightedCells[0].x,
+                this.highlightedCells[0].y,
+                5, 8, 4, 0xFFD700
+            );
+            mergeIcon.setDepth(501);
+            this.highlightedCells.push(mergeIcon);
+        }
+    }
+    
+    /**
+     * Завершение перетаскивания юнита
+     */
+    onUnitDragEnd(unit, pointer, dragX, dragY) {
+        if (!this.isDragging || !this.draggedUnit) {
+            console.log('onUnitDragEnd: не перетаскиваем или нет юнита');
+            return;
+        }
+        
+        console.log('onUnitDragEnd: завершение перетаскивания');
+        
+        // Удаляем призрак и подсветку
+        this.dragGhostElements.forEach(elem => elem.destroy());
+        this.dragGhostElements = [];
+        this.highlightedCells.forEach(cell => cell.destroy());
+        this.highlightedCells = [];
+        
+        // Используем pointer.x и pointer.y для абсолютных координат
+        // dragX и dragY - это относительные координаты от начальной позиции
+        const worldX = pointer.x;
+        const worldY = pointer.y;
+        
+        console.log('Координаты drop:', worldX, worldY);
+        console.log('dragX, dragY:', dragX, dragY);
+        
+        // Проверяем валидность координат pointer
+        if (isNaN(worldX) || isNaN(worldY) || worldX === undefined || worldY === undefined) {
+            console.log('Невалидные координаты pointer, отменяем перетаскивание');
+            this.isDragging = false;
+            this.draggedUnit = null;
+            return;
+        }
+        
+        const gridPos = this.gridSystem.getGridPosition(worldX, worldY);
+        console.log('Позиция drop:', gridPos);
+        
+        // Проверяем валидность координат
+        if (isNaN(gridPos.x) || isNaN(gridPos.y)) {
+            console.log('Невалидные координаты, отменяем перетаскивание');
+            this.isDragging = false;
+            this.draggedUnit = null;
+            return;
+        }
+        
+        // Проверяем, можем ли переместить
+        const placementResult = this.gridSystem.canPlaceOrMerge(
+            gridPos.x, gridPos.y,
+            this.draggedUnit.size,
+            this.draggedUnit.unitType,
+            false
+        );
+        
+        console.log('Результат размещения:', placementResult);
+        
+        if (placementResult.canPlace) {
+            if (placementResult.isMerge) {
+                // МЕРДЖ с существующим юнитом
+                console.log('Выполняем мердж');
+                placementResult.existingUnit.merge(this.draggedUnit.unitType);
+                // Удаляем перетаскиваемый юнит
+                this.draggedUnit.die();
+                this.gridSystem.removeUnit(this.draggedUnit);
+            } else {
+                // ПЕРЕМЕЩЕНИЕ
+                console.log('Выполняем перемещение');
+                this.gridSystem.removeUnit(this.draggedUnit);
+                this.gridSystem.placeUnit(gridPos.x, gridPos.y, this.draggedUnit);
+                this.draggedUnit.gridX = gridPos.x;
+                this.draggedUnit.gridY = gridPos.y;
+                this.draggedUnit.updateMergeStars();
+            }
+        } else {
+            console.log('Нельзя разместить, отменяем перетаскивание');
+        }
+        
+        // Сброс состояния
+        this.isDragging = false;
+        this.draggedUnit = null;
     }
 }
 
