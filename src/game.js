@@ -453,13 +453,15 @@ class Unit {
         
         console.log(`Создаем юнит ${this.constructor.name}: размер ${this.size.width}x${this.size.height}, спрайт ${spriteWidth}x${spriteHeight}, позиция (${centerX}, ${centerY})`);
         
-        this.sprite = this.scene.add.rectangle(
-            centerX, 
-            centerY, 
-            spriteWidth,
-            spriteHeight,
-            this.color
-        );
+        // Определяем спрайт в зависимости от типа юнита
+        let spriteKey = 'archer'; // по умолчанию
+        if (this.unitType === 'WARRIOR') spriteKey = 'warrior';
+        else if (this.unitType === 'BARBARIAN') spriteKey = 'barbarian';
+        else if (this.unitType === 'HEALER') spriteKey = 'healer';
+        else if (this.unitType === 'MAGE') spriteKey = 'mage';
+        
+        this.sprite = this.scene.add.image(centerX, centerY, spriteKey);
+        this.sprite.setDisplaySize(spriteWidth, spriteHeight);
         
         // Добавляем рамку
         this.scene.add.rectangle(
@@ -473,8 +475,9 @@ class Unit {
         
         this.createHpBar(centerX, centerY);
         
+        // Для врагов делаем спрайт темнее
         if (this.isEnemy) {
-            this.sprite.setFillStyle(0x666666);
+            this.sprite.setTint(0x666666);
         }
         
         // Добавляем drag-and-drop для юнитов игрока
@@ -586,11 +589,11 @@ class Unit {
 
     createDamageEffect() {
         // Эффект повреждения - меняем цвет на красный и обратно
-        const originalColor = this.isEnemy ? 0x666666 : this.color;
-        this.sprite.setFillStyle(0xFF0000);
+        const originalTint = this.isEnemy ? 0x666666 : 0xFFFFFF;
+        this.sprite.setTint(0xFF0000);
         this.scene.time.delayedCall(100, () => {
             if (this.sprite && this.sprite.scene) {
-                this.sprite.setFillStyle(originalColor);
+                this.sprite.setTint(originalTint);
             }
         });
     }
@@ -823,10 +826,11 @@ class Archer extends Unit {
 
     updateVisuals() {
         if (this.sprite) {
-            this.sprite.setFillStyle(this.color);
-            
+            // Для изображений используем tint вместо fillStyle
             if (this.isEnemy) {
-                this.sprite.setFillStyle(0x666666);
+                this.sprite.setTint(0x666666);
+            } else {
+                this.sprite.setTint(0xFFFFFF);
             }
         }
     }
@@ -860,10 +864,11 @@ class Warrior extends Unit {
 
     updateVisuals() {
         if (this.sprite) {
-            this.sprite.setFillStyle(this.color);
-            
+            // Для изображений используем tint вместо fillStyle
             if (this.isEnemy) {
-                this.sprite.setFillStyle(0x666666);
+                this.sprite.setTint(0x666666);
+            } else {
+                this.sprite.setTint(0xFFFFFF);
             }
         }
     }
@@ -987,10 +992,11 @@ class Healer extends Unit {
 
     updateVisuals() {
         if (this.sprite) {
-            this.sprite.setFillStyle(this.color);
-            
+            // Для изображений используем tint вместо fillStyle
             if (this.isEnemy) {
-                this.sprite.setFillStyle(0x666666);
+                this.sprite.setTint(0x666666);
+            } else {
+                this.sprite.setTint(0xFFFFFF);
             }
         }
     }
@@ -1171,10 +1177,11 @@ class Barbarian extends Unit {
 
     updateVisuals() {
         if (this.sprite) {
-            this.sprite.setFillStyle(this.color);
-            
+            // Для изображений используем tint вместо fillStyle
             if (this.isEnemy) {
-                this.sprite.setFillStyle(0x666666);
+                this.sprite.setTint(0x666666);
+            } else {
+                this.sprite.setTint(0xFFFFFF);
             }
         }
     }
@@ -1236,10 +1243,11 @@ class Mage extends Unit {
 
     updateVisuals() {
         if (this.sprite) {
-            this.sprite.setFillStyle(this.color);
-            
+            // Для изображений используем tint вместо fillStyle
             if (this.isEnemy) {
-                this.sprite.setFillStyle(0x666666);
+                this.sprite.setTint(0x666666);
+            } else {
+                this.sprite.setTint(0xFFFFFF);
             }
         }
     }
@@ -1557,6 +1565,15 @@ class GameScene extends Phaser.Scene {
         this.resultsText = null;
         
         console.log('=== ИГРА СБРОШЕНА ===');
+    }
+
+    preload() {
+        // Загружаем спрайты юнитов
+        this.load.image('archer', 'assets/sprites/Elf_Archer.png');
+        this.load.image('warrior', 'assets/sprites/Elf_Knight_Sword.png');
+        this.load.image('barbarian', 'assets/sprites/Dwarf Axe Warrior.png');
+        this.load.image('healer', 'assets/sprites/Dark Elves Healer Priestess.png');
+        this.load.image('mage', 'assets/sprites/Dark Elves Crystal Mage.png');
     }
 
     create() {
