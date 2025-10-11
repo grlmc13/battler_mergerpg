@@ -581,6 +581,7 @@ class Unit {
         }
         
         this.createDamageEffect();
+        this.createDamageNumber(damage);
     }
 
     createDamageEffect() {
@@ -590,6 +591,64 @@ class Unit {
         this.scene.time.delayedCall(100, () => {
             if (this.sprite && this.sprite.scene) {
                 this.sprite.setFillStyle(originalColor);
+            }
+        });
+    }
+
+    createDamageNumber(damage) {
+        // Позиция для цифры урона (над юнитом)
+        const startX = this.scene.gridSystem.gridOffsetX + (this.gridX * this.scene.gridSystem.cellSize);
+        const startY = this.scene.gridSystem.gridOffsetY + (this.gridY * this.scene.gridSystem.cellSize);
+        const centerX = startX + (this.size.width * this.scene.gridSystem.cellSize / 2);
+        const centerY = startY + (this.size.height * this.scene.gridSystem.cellSize / 2);
+        
+        // Создаем текст с уроном
+        const damageText = this.scene.add.text(centerX, centerY - 20, `-${damage}`, {
+            fontSize: '16px',
+            fill: '#FF0000',
+            fontStyle: 'bold',
+            stroke: '#000000',
+            strokeThickness: 2
+        }).setOrigin(0.5);
+        
+        // Анимация плавания вверх и исчезновения
+        this.scene.tweens.add({
+            targets: damageText,
+            y: centerY - 50,
+            alpha: 0,
+            duration: 1000,
+            ease: 'Power2',
+            onComplete: () => {
+                damageText.destroy();
+            }
+        });
+    }
+
+    createHealNumber(healAmount) {
+        // Позиция для цифры лечения (над юнитом)
+        const startX = this.scene.gridSystem.gridOffsetX + (this.gridX * this.scene.gridSystem.cellSize);
+        const startY = this.scene.gridSystem.gridOffsetY + (this.gridY * this.scene.gridSystem.cellSize);
+        const centerX = startX + (this.size.width * this.scene.gridSystem.cellSize / 2);
+        const centerY = startY + (this.size.height * this.scene.gridSystem.cellSize / 2);
+        
+        // Создаем текст с лечением
+        const healText = this.scene.add.text(centerX, centerY - 20, `+${healAmount}`, {
+            fontSize: '16px',
+            fill: '#00FF00',
+            fontStyle: 'bold',
+            stroke: '#000000',
+            strokeThickness: 2
+        }).setOrigin(0.5);
+        
+        // Анимация плавания вверх и исчезновения
+        this.scene.tweens.add({
+            targets: healText,
+            y: centerY - 50,
+            alpha: 0,
+            duration: 1000,
+            ease: 'Power2',
+            onComplete: () => {
+                healText.destroy();
             }
         });
     }
@@ -982,6 +1041,7 @@ class Healer extends Unit {
             if (healedAmount > 0) {
                 console.log(`Лекарь лечит ${ally.constructor.name} на ${healedAmount} HP (${oldHp} -> ${ally.hp})`);
                 ally.updateHpBar();
+                ally.createHealNumber(healedAmount);
             }
         });
         
