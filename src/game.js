@@ -1585,11 +1585,11 @@ class GameScene extends Phaser.Scene {
 
     preload() {
         // Загружаем спрайты юнитов
-        this.load.image('archer', './assets/sprites/Elf_Archer.png');
-        this.load.image('warrior', './assets/sprites/Elf_Knight_Sword.png');
-        this.load.image('barbarian', './assets/sprites/Dwarf Axe Warrior.png');
-        this.load.image('healer', './assets/sprites/Dark Elves Healer Priestess.png');
-        this.load.image('mage', './assets/sprites/Dark Elves Crystal Mage.png');
+        this.load.image('archer', 'src/assets/sprites/Elf_Archer.png');
+        this.load.image('warrior', 'src/assets/sprites/Elf_Knight_Sword.png');
+        this.load.image('barbarian', 'src/assets/sprites/Dwarf Axe Warrior.png');
+        this.load.image('healer', 'src/assets/sprites/Dark Elves Healer Priestess.png');
+        this.load.image('mage', 'src/assets/sprites/Dark Elves Crystal Mage.png');
         
         // Добавляем обработчики для отладки загрузки
         this.load.on('filecomplete', (key, type, data) => {
