@@ -455,10 +455,20 @@ class Unit {
         
         // Определяем спрайт в зависимости от типа юнита
         let spriteKey = 'archer'; // по умолчанию
-        if (this.unitType === 'WARRIOR') spriteKey = 'warrior';
-        else if (this.unitType === 'BARBARIAN') spriteKey = 'barbarian';
-        else if (this.unitType === 'HEALER') spriteKey = 'healer';
-        else if (this.unitType === 'MAGE') spriteKey = 'mage';
+        
+        // Определяем тип по классу, если unitType еще не установлен
+        if (this.unitType) {
+            if (this.unitType === 'WARRIOR') spriteKey = 'warrior';
+            else if (this.unitType === 'BARBARIAN') spriteKey = 'barbarian';
+            else if (this.unitType === 'HEALER') spriteKey = 'healer';
+            else if (this.unitType === 'MAGE') spriteKey = 'mage';
+        } else {
+            // Fallback по классу
+            if (this.constructor.name === 'Warrior') spriteKey = 'warrior';
+            else if (this.constructor.name === 'Barbarian') spriteKey = 'barbarian';
+            else if (this.constructor.name === 'Healer') spriteKey = 'healer';
+            else if (this.constructor.name === 'Mage') spriteKey = 'mage';
+        }
         
         console.log('Создаем спрайт:', spriteKey, 'для юнита:', this.constructor.name);
         
@@ -2310,6 +2320,14 @@ class GameScene extends Phaser.Scene {
                 unit.sprite.setScale(1, 1);
                 unit.sprite.setVisible(true);
                 
+                // Исправляем размер спрайта если это изображение
+                if (unit.sprite.setDisplaySize) {
+                    const spriteWidth = unit.size.width * this.gridSystem.cellSize;
+                    const spriteHeight = unit.size.height * this.gridSystem.cellSize;
+                    unit.sprite.setDisplaySize(spriteWidth, spriteHeight);
+                    console.log('Исправляем размер спрайта после воскрешения:', spriteWidth, 'x', spriteHeight);
+                }
+                
                 // Делаем hpBar снова видимыми
                 if (unit.hpBar && unit.hpBar.scene) {
                     unit.hpBar.setVisible(true);
@@ -2388,6 +2406,14 @@ class GameScene extends Phaser.Scene {
                 unit.sprite.setAlpha(1);
                 unit.sprite.setScale(1, 1);
                 unit.sprite.setVisible(true);
+                
+                // Исправляем размер спрайта если это изображение
+                if (unit.sprite.setDisplaySize) {
+                    const spriteWidth = unit.size.width * this.gridSystem.cellSize;
+                    const spriteHeight = unit.size.height * this.gridSystem.cellSize;
+                    unit.sprite.setDisplaySize(spriteWidth, spriteHeight);
+                    console.log('Исправляем размер спрайта врага после воскрешения:', spriteWidth, 'x', spriteHeight);
+                }
                 
                 // Делаем hpBar снова видимыми
                 if (unit.hpBar && unit.hpBar.scene) {
