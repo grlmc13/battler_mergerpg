@@ -89,7 +89,57 @@ window.gameConfig = {
             damage: 8, // Меньше урона, но бьет по 3 целям
             attackSpeed: 2.5, // Медленнее атакует
             range: 10, // Увеличен радиус для всего поля
+            maxTargets: 3, // Атакует до 3 целей одновременно
             color: 0x9B4AE2
+        },
+        TANK: {
+            name: 'Танк',
+            size: { width: 1, height: 2 },
+            cost: 5,
+            hp: 80,
+            damage: 10,
+            attackSpeed: 2.0,
+            range: 10,
+            hasShield: true,
+            shieldReduction: 0.3,
+            color: 0xC0C0C0
+        },
+        ASSASSIN: {
+            name: 'Ассасин',
+            size: { width: 1, height: 1 },
+            cost: 3,
+            hp: 20,
+            damage: 20,
+            attackSpeed: 1.2,
+            range: 10,
+            hasCritical: true,
+            criticalChance: 0.5,
+            color: 0x8B008B
+        },
+        DRUID: {
+            name: 'Друид',
+            size: { width: 2, height: 1 },
+            cost: 4,
+            hp: 45,
+            damage: 6,
+            attackSpeed: 1.8,
+            range: 10,
+            hasThorns: true,
+            thornsDamage: 5,
+            color: 0x8B4513
+        },
+        WITCH: {
+            name: 'Ведьма',
+            size: { width: 2, height: 2 },
+            cost: 6,
+            hp: 35,
+            damage: 12,
+            attackSpeed: 3.0,
+            range: 10,
+            hasCurse: true,
+            curseDamage: 2,
+            curseRange: 2,
+            color: 0x4B0082
         }
     }
 };
@@ -468,6 +518,10 @@ class Unit {
             else if (this.constructor.name === 'Barbarian') spriteKey = 'barbarian';
             else if (this.constructor.name === 'Healer') spriteKey = 'healer';
             else if (this.constructor.name === 'Mage') spriteKey = 'mage';
+            else if (this.constructor.name === 'Tank') spriteKey = 'tank';
+            else if (this.constructor.name === 'Assassin') spriteKey = 'assassin';
+            else if (this.constructor.name === 'Druid') spriteKey = 'druid';
+            else if (this.constructor.name === 'Witch') spriteKey = 'witch';
         }
         
         console.log('Создаем спрайт:', spriteKey, 'для юнита:', this.constructor.name);
@@ -843,27 +897,6 @@ class Unit {
             }
         });
     }
-}
-
-// Лучник
-class Archer extends Unit {
-    constructor(scene, gridX, gridY, isEnemy = false) {
-        super(scene, gridX, gridY, isEnemy, { width: 1, height: 1 }, 0x4A90E2);
-        
-        this.unitType = 'ARCHER';
-        this.maxHp = 30;
-        this.hp = this.maxHp;
-        this.damage = 8;
-        this.attackSpeed = 0.5;
-        this.baseAttackSpeed = 0.5; // Запоминаем базовую скорость для баффов
-        this.range = 10; // Увеличен радиус
-        
-        // Сохраняем базовые значения для мерджа
-        this.baseHp = this.maxHp;
-        this.baseDamage = this.damage;
-        
-        this.updateVisuals();
-    }
 
     updateVisuals() {
         if (this.sprite) {
@@ -884,6 +917,27 @@ class Archer extends Unit {
                 }
             }
         }
+    }
+}
+
+// Лучник
+class Archer extends Unit {
+    constructor(scene, gridX, gridY, isEnemy = false) {
+        super(scene, gridX, gridY, isEnemy, { width: 1, height: 1 }, 0x4A90E2);
+        
+        this.unitType = 'ARCHER';
+        this.maxHp = 30;
+        this.hp = this.maxHp;
+        this.damage = 8;
+        this.attackSpeed = 0.5;
+        this.baseAttackSpeed = 0.5; // Запоминаем базовую скорость для баффов
+        this.range = 10; // Увеличен радиус
+        
+        // Сохраняем базовые значения для мерджа
+        this.baseHp = this.maxHp;
+        this.baseDamage = this.damage;
+        
+        this.updateVisuals();
     }
 }
 
@@ -911,27 +965,6 @@ class Warrior extends Unit {
         this.baseDamage = this.damage;
         
         this.updateVisuals();
-    }
-
-    updateVisuals() {
-        if (this.sprite) {
-            // Проверяем тип спрайта и используем соответствующий метод
-            if (this.sprite.setTint) {
-                // Это изображение - используем setTint
-                if (this.isEnemy) {
-                    this.sprite.setTint(0x666666);
-                } else {
-                    this.sprite.setTint(0xFFFFFF);
-                }
-            } else {
-                // Это прямоугольник - используем setFillStyle
-                if (this.isEnemy) {
-                    this.sprite.setFillStyle(0x666666);
-                } else {
-                    this.sprite.setFillStyle(this.color);
-                }
-            }
-        }
     }
     
     // Создаем визуальный эффект Боевого клича (желтые волны)
@@ -1049,27 +1082,6 @@ class Healer extends Unit {
         this.baseDamage = this.damage;
         
         this.updateVisuals();
-    }
-
-    updateVisuals() {
-        if (this.sprite) {
-            // Проверяем тип спрайта и используем соответствующий метод
-            if (this.sprite.setTint) {
-                // Это изображение - используем setTint
-                if (this.isEnemy) {
-                    this.sprite.setTint(0x666666);
-                } else {
-                    this.sprite.setTint(0xFFFFFF);
-                }
-            } else {
-                // Это прямоугольник - используем setFillStyle
-                if (this.isEnemy) {
-                    this.sprite.setFillStyle(0x666666);
-                } else {
-                    this.sprite.setFillStyle(this.color);
-                }
-            }
-        }
     }
 
     // Переопределяем метод атаки для лечения
@@ -1245,27 +1257,6 @@ class Barbarian extends Unit {
         this.updateVisuals();
         this.createTauntEffect(); // Визуальный эффект провокации
     }
-
-    updateVisuals() {
-        if (this.sprite) {
-            // Проверяем тип спрайта и используем соответствующий метод
-            if (this.sprite.setTint) {
-                // Это изображение - используем setTint
-                if (this.isEnemy) {
-                    this.sprite.setTint(0x666666);
-                } else {
-                    this.sprite.setTint(0xFFFFFF);
-                }
-            } else {
-                // Это прямоугольник - используем setFillStyle
-                if (this.isEnemy) {
-                    this.sprite.setFillStyle(0x666666);
-                } else {
-                    this.sprite.setFillStyle(this.color);
-                }
-            }
-        }
-    }
     
     createTauntEffect() {
         // Красное свечение вокруг варвара (эффект провокации)
@@ -1288,6 +1279,16 @@ class Barbarian extends Unit {
         
         // Сохраняем ссылку для удаления при смерти
         this.tauntGlow = tauntGlow;
+    }
+    
+    setPosition(x, y) {
+        // Вызываем родительский метод для обновления позиции спрайта и HP бара
+        super.setPosition(x, y);
+        
+        // Обновляем позицию эффекта провокации
+        if (this.tauntGlow) {
+            this.tauntGlow.setPosition(x, y);
+        }
     }
     
     die() {
@@ -1320,27 +1321,6 @@ class Mage extends Unit {
         this.baseDamage = this.damage;
         
         this.updateVisuals();
-    }
-
-    updateVisuals() {
-        if (this.sprite) {
-            // Проверяем тип спрайта и используем соответствующий метод
-            if (this.sprite.setTint) {
-                // Это изображение - используем setTint
-                if (this.isEnemy) {
-                    this.sprite.setTint(0x666666);
-                } else {
-                    this.sprite.setTint(0xFFFFFF);
-                }
-            } else {
-                // Это прямоугольник - используем setFillStyle
-                if (this.isEnemy) {
-                    this.sprite.setFillStyle(0x666666);
-                } else {
-                    this.sprite.setFillStyle(this.color);
-                }
-            }
-        }
     }
 
     // Переопределяем метод атаки - бьет по 3 целям
@@ -1423,6 +1403,326 @@ class Mage extends Unit {
     }
 }
 
+// Танк
+class Tank extends Unit {
+    constructor(scene, gridX, gridY, isEnemy = false) {
+        super(scene, gridX, gridY, isEnemy, { width: 1, height: 2 }, 0xC0C0C0);
+        
+        this.unitType = 'TANK';
+        this.maxHp = 80;
+        this.hp = this.maxHp;
+        this.damage = 10;
+        this.attackSpeed = 2.0;
+        this.baseAttackSpeed = 2.0;
+        this.range = 10;
+        this.shieldReduction = 0.3;
+        
+        this.baseHp = this.maxHp;
+        this.baseDamage = this.damage;
+        
+        this.updateVisuals();
+        this.createShieldEffect();
+    }
+    
+    createShieldEffect() {
+        // Визуальный эффект щита - золотой круг вокруг юнита
+        if (this.shieldGlow) {
+            this.shieldGlow.destroy();
+        }
+        
+        const centerX = this.sprite.x;
+        const centerY = this.sprite.y;
+        const radius = Math.max(this.size.width, this.size.height) * this.scene.gridSystem.cellSize * 0.6;
+        
+        this.shieldGlow = this.scene.add.circle(centerX, centerY, radius, 0xFFD700, 0.3);
+        this.shieldGlow.setStrokeStyle(2, 0xFFD700, 0.8);
+        
+        // Пульсирующая анимация
+        this.scene.tweens.add({
+            targets: this.shieldGlow,
+            scaleX: 1.1,
+            scaleY: 1.1,
+            duration: 1000,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+    }
+    
+    takeDamage(damage) {
+        const reducedDamage = Math.floor(damage * (1 - this.shieldReduction));
+        console.log(`Танк получает урон: ${damage} -> ${reducedDamage} (щит: ${this.shieldReduction * 100}%)`);
+        super.takeDamage(reducedDamage);
+        
+        // Применяем щит к соседним союзникам
+        this.applyShieldToAllies();
+    }
+    
+    applyShieldToAllies() {
+        const allies = this.isEnemy ? this.scene.enemyUnits : this.scene.playerUnits;
+        allies.forEach(ally => {
+            if (ally !== this && !ally.isDead && this.getGridDistanceTo(ally) <= 1) {
+                // Применяем временный щит к союзнику
+                ally.tempShield = true;
+                ally.shieldReduction = 0.15; // Меньший щит для союзников
+                
+                // Убираем щит через 3 секунды
+                this.scene.time.delayedCall(3000, () => {
+                    if (ally.tempShield) {
+                        ally.tempShield = false;
+                        ally.shieldReduction = 0;
+                    }
+                });
+            }
+        });
+    }
+    
+    setPosition(x, y) {
+        // Вызываем родительский метод для обновления позиции спрайта и HP бара
+        super.setPosition(x, y);
+        
+        // Обновляем позицию эффекта щита
+        if (this.shieldGlow) {
+            this.shieldGlow.setPosition(x, y);
+        }
+    }
+    
+    die() {
+        if (this.shieldGlow) {
+            this.shieldGlow.destroy();
+        }
+        super.die();
+    }
+}
+
+// Ассасин
+class Assassin extends Unit {
+    constructor(scene, gridX, gridY, isEnemy = false) {
+        super(scene, gridX, gridY, isEnemy, { width: 1, height: 1 }, 0x8B008B);
+        
+        this.unitType = 'ASSASSIN';
+        this.maxHp = 20;
+        this.hp = this.maxHp;
+        this.damage = 20;
+        this.attackSpeed = 1.2;
+        this.baseAttackSpeed = 1.2;
+        this.range = 10;
+        this.criticalChance = 0.5;
+        
+        this.baseHp = this.maxHp;
+        this.baseDamage = this.damage;
+        
+        this.updateVisuals();
+    }
+    
+    attack(target) {
+        if (!this.canAttack() || this.isDead) return false;
+        
+        this.lastAttackTime = this.scene.time.now;
+        
+        // Шанс критического удара
+        const isCritical = Math.random() < this.criticalChance;
+        const finalDamage = isCritical ? this.damage * 2 : this.damage;
+        
+        if (isCritical) {
+            console.log('КРИТИЧЕСКИЙ УДАР!', finalDamage);
+            this.createCriticalEffect(target);
+        }
+        
+        target.takeDamage(finalDamage);
+        this.createAttackEffect(target);
+        
+        return true;
+    }
+    
+    createCriticalEffect(target) {
+        // Визуальный эффект критического удара - желтая вспышка
+        const flash = this.scene.add.rectangle(
+            target.sprite.x, 
+            target.sprite.y, 
+            target.size.width * this.scene.gridSystem.cellSize,
+            target.size.height * this.scene.gridSystem.cellSize,
+            0xFFFF00,
+            0.8
+        );
+        
+        this.scene.tweens.add({
+            targets: flash,
+            alpha: 0,
+            duration: 200,
+            onComplete: () => flash.destroy()
+        });
+    }
+}
+
+// Друид
+class Druid extends Unit {
+    constructor(scene, gridX, gridY, isEnemy = false) {
+        super(scene, gridX, gridY, isEnemy, { width: 2, height: 1 }, 0x8B4513);
+        
+        this.unitType = 'DRUID';
+        this.maxHp = 45;
+        this.hp = this.maxHp;
+        this.damage = 6;
+        this.attackSpeed = 1.8;
+        this.baseAttackSpeed = 1.8;
+        this.range = 10;
+        this.thornsDamage = 5;
+        
+        this.baseHp = this.maxHp;
+        this.baseDamage = this.damage;
+        
+        this.updateVisuals();
+        this.createThornsEffect();
+    }
+    
+    createThornsEffect() {
+        // Визуальный эффект шипов - зеленые шипы вокруг юнита
+        if (this.thornsGlow) {
+            this.thornsGlow.destroy();
+        }
+        
+        const centerX = this.sprite.x;
+        const centerY = this.sprite.y;
+        const radius = Math.max(this.size.width, this.size.height) * this.scene.gridSystem.cellSize * 0.5;
+        
+        this.thornsGlow = this.scene.add.circle(centerX, centerY, radius, 0x00FF00, 0.2);
+        this.thornsGlow.setStrokeStyle(1, 0x00FF00, 0.6);
+        
+        // Вращающаяся анимация
+        this.scene.tweens.add({
+            targets: this.thornsGlow,
+            rotation: Math.PI * 2,
+            duration: 2000,
+            repeat: -1,
+            ease: 'Linear'
+        });
+    }
+    
+    setPosition(x, y) {
+        // Вызываем родительский метод для обновления позиции спрайта и HP бара
+        super.setPosition(x, y);
+        
+        // Обновляем позицию эффекта шипов
+        if (this.thornsGlow) {
+            this.thornsGlow.setPosition(x, y);
+        }
+    }
+    
+    takeDamage(damage) {
+        super.takeDamage(damage);
+        
+        // Отражение урона обратно атакующему
+        // Это будет обработано в BattleSystem.processAttacks
+    }
+    
+    die() {
+        if (this.thornsGlow) {
+            this.thornsGlow.destroy();
+        }
+        super.die();
+    }
+}
+
+// Ведьма
+class Witch extends Unit {
+    constructor(scene, gridX, gridY, isEnemy = false) {
+        super(scene, gridX, gridY, isEnemy, { width: 2, height: 2 }, 0x4B0082);
+        
+        this.unitType = 'WITCH';
+        this.maxHp = 35;
+        this.hp = this.maxHp;
+        this.damage = 12;
+        this.attackSpeed = 3.0;
+        this.baseAttackSpeed = 3.0;
+        this.range = 10;
+        this.curseDamage = 2;
+        this.curseRange = 2;
+        this.lastCurseTick = 0;
+        
+        this.baseHp = this.maxHp;
+        this.baseDamage = this.damage;
+        
+        this.updateVisuals();
+        this.createCurseEffect();
+    }
+    
+    createCurseEffect() {
+        // Визуальный эффект проклятия - фиолетовая аура
+        if (this.curseGlow) {
+            this.curseGlow.destroy();
+        }
+        
+        const centerX = this.sprite.x;
+        const centerY = this.sprite.y;
+        const radius = this.curseRange * this.scene.gridSystem.cellSize;
+        
+        this.curseGlow = this.scene.add.circle(centerX, centerY, radius, 0x4B0082, 0.1);
+        this.curseGlow.setStrokeStyle(1, 0x4B0082, 0.4);
+        
+        // Пульсирующая анимация
+        this.scene.tweens.add({
+            targets: this.curseGlow,
+            scaleX: 1.2,
+            scaleY: 1.2,
+            duration: 1500,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+    }
+    
+    applyCurse() {
+        const currentTime = this.scene.time.now;
+        if (currentTime - this.lastCurseTick < 1000) return;
+        
+        this.lastCurseTick = currentTime;
+        
+        // Находим врагов в радиусе и применяем DoT
+        const enemies = this.isEnemy ? this.scene.playerUnits : this.scene.enemyUnits;
+        enemies.forEach(enemy => {
+            if (!enemy.isDead && this.getGridDistanceTo(enemy) <= this.curseRange) {
+                enemy.takeDamage(this.curseDamage);
+                this.createCurseTickEffect(enemy);
+            }
+        });
+    }
+    
+    createCurseTickEffect(target) {
+        // Визуальный эффект тика проклятия
+        const tick = this.scene.add.text(target.sprite.x, target.sprite.y - 20, `-${this.curseDamage}`, {
+            fontSize: '12px',
+            fill: '#4B0082',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+        
+        this.scene.tweens.add({
+            targets: tick,
+            y: target.sprite.y - 40,
+            alpha: 0,
+            duration: 800,
+            onComplete: () => tick.destroy()
+        });
+    }
+    
+    setPosition(x, y) {
+        // Вызываем родительский метод для обновления позиции спрайта и HP бара
+        super.setPosition(x, y);
+        
+        // Обновляем позицию эффекта проклятия
+        if (this.curseGlow) {
+            this.curseGlow.setPosition(x, y);
+        }
+    }
+    
+    die() {
+        if (this.curseGlow) {
+            this.curseGlow.destroy();
+        }
+        super.die();
+    }
+}
+
 // Боевая система
 class BattleSystem {
     constructor(scene) {
@@ -1461,6 +1761,10 @@ class BattleSystem {
         this.updateBattleCryBuffs(alivePlayerUnits);
         this.updateBattleCryBuffs(aliveEnemyUnits);
         
+        // Применяем проклятия Ведьм
+        this.applyWitchCurses(alivePlayerUnits);
+        this.applyWitchCurses(aliveEnemyUnits);
+        
         if (alivePlayerUnits.length === 0) {
             console.log('Поражение! Враги победили.');
             this.endBattle(false);
@@ -1486,6 +1790,12 @@ class BattleSystem {
                 if (target) {
                     console.log(`Юнит ${unit.constructor.name} атакует ${target.constructor.name}`);
                     unit.attack(target);
+                    
+                    // Шипы Друида: отражение урона обратно атакующему
+                    if (target instanceof Druid && target.isAlive()) {
+                        unit.takeDamage(target.thornsDamage);
+                        console.log('Шипы Друида отражают урон:', target.thornsDamage);
+                    }
                 }
             }
         });
@@ -1557,6 +1867,15 @@ class BattleSystem {
             } else {
                 // Возвращаем нормальную скорость
                 unit.attackSpeed = unit.baseAttackSpeed;
+            }
+        });
+    }
+
+    applyWitchCurses(units) {
+        // Применяем проклятия от всех живых Ведьм
+        units.forEach(unit => {
+            if (unit instanceof Witch && unit.isAlive()) {
+                unit.applyCurse();
             }
         });
     }
@@ -1659,12 +1978,19 @@ class GameScene extends Phaser.Scene {
     }
 
     preload() {
-        // Загружаем спрайты юнитов
+        // Временно отключаем загрузку спрайтов из-за CORS
+        // TODO: Включить когда будет HTTP сервер
+        /*
         this.load.image('archer', 'src/assets/sprites/Elf_Archer.png');
         this.load.image('warrior', 'src/assets/sprites/Elf_Knight_Sword.png');
         this.load.image('barbarian', 'src/assets/sprites/Dwarf Axe Warrior.png');
         this.load.image('healer', 'src/assets/sprites/Dark Elves Healer Priestess.png');
         this.load.image('mage', 'src/assets/sprites/Dark Elves Crystal Mage.png');
+        this.load.image('tank', 'src/assets/sprites/tank.png');
+        this.load.image('assassin', 'src/assets/sprites/assassin.png');
+        this.load.image('druid', 'src/assets/sprites/druid.png');
+        this.load.image('witch', 'src/assets/sprites/witch.png');
+        */
         
         // Добавляем обработчики для отладки загрузки
         this.load.on('filecomplete', (key, type, data) => {
@@ -1819,6 +2145,34 @@ class GameScene extends Phaser.Scene {
                 icon = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, unitData.color);
                 border = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, 0x000000, 0).setStrokeStyle(1, 0x333333);
                 specialIcon = this.add.star(x, shopY - 20, 3, 6, 3, 0xFFD700);
+            } else if (type === 'TANK') {
+                icon = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, unitData.color);
+                border = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, 0x000000, 0).setStrokeStyle(1, 0x333333);
+                specialIcon = this.add.rectangle(x, shopY - 20, iconWidth - 4, iconHeight - 4, 0xC0C0C0, 0.3);
+            } else if (type === 'ASSASSIN') {
+                icon = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, unitData.color);
+                border = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, 0x000000, 0).setStrokeStyle(1, 0x333333);
+                specialIcon = this.add.text(x, shopY - 20, '!', {
+                    fontSize: '14px',
+                    fill: '#FFD700',
+                    fontStyle: 'bold'
+                }).setOrigin(0.5);
+            } else if (type === 'DRUID') {
+                icon = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, unitData.color);
+                border = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, 0x000000, 0).setStrokeStyle(1, 0x333333);
+                specialIcon = this.add.text(x, shopY - 20, '♠', {
+                    fontSize: '12px',
+                    fill: '#00FF00',
+                    fontStyle: 'bold'
+                }).setOrigin(0.5);
+            } else if (type === 'WITCH') {
+                icon = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, unitData.color);
+                border = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, 0x000000, 0).setStrokeStyle(1, 0x333333);
+                specialIcon = this.add.text(x, shopY - 20, '☠', {
+                    fontSize: '12px',
+                    fill: '#FF00FF',
+                    fontStyle: 'bold'
+                }).setOrigin(0.5);
             }
 
             // Создаем тексты
@@ -1843,6 +2197,14 @@ class GameScene extends Phaser.Scene {
                 abilityIndicator = this.add.circle(x + iconWidth/2 - 5, shopY - 20 - iconHeight/2 + 5, 3, 0x00FF00);
             } else if (unitData.maxTargets) {
                 abilityIndicator = this.add.circle(x + iconWidth/2 - 5, shopY - 20 - iconHeight/2 + 5, 3, 0x9B4AE2);
+            } else if (unitData.hasShield) {
+                abilityIndicator = this.add.circle(x + iconWidth/2 - 5, shopY - 20 - iconHeight/2 + 5, 3, 0xC0C0C0);
+            } else if (unitData.hasCritical) {
+                abilityIndicator = this.add.circle(x + iconWidth/2 - 5, shopY - 20 - iconHeight/2 + 5, 3, 0xFFD700);
+            } else if (unitData.hasThorns) {
+                abilityIndicator = this.add.circle(x + iconWidth/2 - 5, shopY - 20 - iconHeight/2 + 5, 3, 0x8B4513);
+            } else if (unitData.hasCurse) {
+                abilityIndicator = this.add.circle(x + iconWidth/2 - 5, shopY - 20 - iconHeight/2 + 5, 3, 0x4B0082);
             }
             
             // Сохраняем все элементы карточки для последующего удаления
@@ -2087,6 +2449,18 @@ class GameScene extends Phaser.Scene {
             case 'MAGE':
                 unit = new Mage(this, gridX, gridY);
                 break;
+            case 'TANK':
+                unit = new Tank(this, gridX, gridY);
+                break;
+            case 'ASSASSIN':
+                unit = new Assassin(this, gridX, gridY);
+                break;
+            case 'DRUID':
+                unit = new Druid(this, gridX, gridY);
+                break;
+            case 'WITCH':
+                unit = new Witch(this, gridX, gridY);
+                break;
         }
         
         if (unit) {
@@ -2142,7 +2516,11 @@ class GameScene extends Phaser.Scene {
             { type: 'WARRIOR', data: UNIT_TYPES.WARRIOR },
             { type: 'HEALER', data: UNIT_TYPES.HEALER },
             { type: 'BARBARIAN', data: UNIT_TYPES.BARBARIAN },
-            { type: 'MAGE', data: UNIT_TYPES.MAGE }
+            { type: 'MAGE', data: UNIT_TYPES.MAGE },
+            { type: 'TANK', data: UNIT_TYPES.TANK },
+            { type: 'ASSASSIN', data: UNIT_TYPES.ASSASSIN },
+            { type: 'DRUID', data: UNIT_TYPES.DRUID },
+            { type: 'WITCH', data: UNIT_TYPES.WITCH }
         ];
         
         // Враг покупает юнитов, пока есть деньги
@@ -2184,6 +2562,18 @@ class GameScene extends Phaser.Scene {
                             break;
                         case 'MAGE':
                             enemy = new Mage(this, x, y, true);
+                            break;
+                        case 'TANK':
+                            enemy = new Tank(this, x, y, true);
+                            break;
+                        case 'ASSASSIN':
+                            enemy = new Assassin(this, x, y, true);
+                            break;
+                        case 'DRUID':
+                            enemy = new Druid(this, x, y, true);
+                            break;
+                        case 'WITCH':
+                            enemy = new Witch(this, x, y, true);
                             break;
                     }
                     
@@ -2548,6 +2938,12 @@ class GameScene extends Phaser.Scene {
     onDragStart(unitType, cardIndex, pointer) {
         if (this.isBattleActive) return;
         
+        // Очищаем предыдущие призраки на всякий случай
+        this.dragGhostElements.forEach(elem => elem.destroy());
+        this.dragGhostElements = [];
+        this.highlightedCells.forEach(cell => cell.destroy());
+        this.highlightedCells = [];
+        
         const unitData = window.gameConfig.UNIT_TYPES[unitType];
         if (!this.economySystem.canAfford(unitData.cost)) return;
         
@@ -2705,6 +3101,12 @@ class GameScene extends Phaser.Scene {
         this.selectedUnitType = null;
         this.selectedUnitData = null;
         this.selectedCardIndex = null;
+        
+        // Дополнительная очистка на всякий случай
+        this.dragGhostElements.forEach(elem => elem.destroy());
+        this.dragGhostElements = [];
+        this.highlightedCells.forEach(cell => cell.destroy());
+        this.highlightedCells = [];
     }
     
     /**
