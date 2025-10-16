@@ -1678,7 +1678,14 @@ class Mage extends Unit {
         
         // Находим до 3 ближайших целей
         const enemies = this.isEnemy ? this.scene.playerUnits : this.scene.enemyUnits;
-        const aliveEnemies = enemies.filter(enemy => !enemy.isDead);
+        const aliveEnemies = enemies.filter(enemy => enemy && !enemy.isDead && enemy.sprite && enemy.sprite.active);
+        
+        console.log(`Доступно живых врагов: ${aliveEnemies.length}`);
+        
+        if (aliveEnemies.length === 0) {
+            console.log('Маг не нашел живых целей для атаки');
+            return false;
+        }
         
         // Сортируем по расстоянию и берем до 3 ближайших
         const sortedEnemies = aliveEnemies.sort((a, b) => {
@@ -1687,22 +1694,30 @@ class Mage extends Unit {
         
         const targets = sortedEnemies.slice(0, this.maxTargets);
         
-        console.log(`Маг атакует ${targets.length} целей`);
+        console.log(`Маг атакует ${targets.length} целей:`, targets.map(t => `${t.constructor.name} (${t.hp} HP)`));
         
         // Наносим урон всем целям
         targets.forEach((enemy, index) => {
-            enemy.takeDamage(this.damage);
-            
-            // Создаем визуальный эффект для каждой цели
-            setTimeout(() => {
-                this.createMagicBolt(enemy);
-            }, index * 100); // Задержка между атаками
+            if (enemy && !enemy.isDead && enemy.sprite && enemy.sprite.active) {
+                enemy.takeDamage(this.damage);
+                
+                // Создаем визуальный эффект для каждой цели
+                setTimeout(() => {
+                    this.createMagicBolt(enemy);
+                }, index * 100); // Задержка между атаками
+            }
         });
         
         return true;
     }
 
     createMagicBolt(target) {
+        // Проверяем, что цель все еще жива и активна
+        if (!target || target.isDead || !target.sprite || !target.sprite.active) {
+            console.log('Цель мертва или неактивна, пропускаем визуальный эффект');
+            return;
+        }
+        
         // Фиолетовая магическая стрела от мага к цели
         const graphics = this.scene.add.graphics();
         graphics.lineStyle(3, 0x9B4AE2, 0.8);
@@ -1713,7 +1728,9 @@ class Mage extends Unit {
         
         // Удаляем линию через 300мс
         this.scene.time.delayedCall(300, () => {
-            graphics.destroy();
+            if (graphics && graphics.destroy) {
+                graphics.destroy();
+            }
         });
         
         // Звёздочки на цели
@@ -1731,7 +1748,11 @@ class Mage extends Unit {
                 angle: 360,
                 duration: 500,
                 delay: i * 50,
-                onComplete: () => star.destroy()
+                onComplete: () => {
+                    if (star && star.destroy) {
+                        star.destroy();
+                    }
+                }
             });
         }
         
@@ -1743,7 +1764,11 @@ class Mage extends Unit {
             scaleY: 1.5,
             alpha: 0,
             duration: 300,
-            onComplete: () => flash.destroy()
+            onComplete: () => {
+                if (flash && flash.destroy) {
+                    flash.destroy();
+                }
+            }
         });
     }
 }
