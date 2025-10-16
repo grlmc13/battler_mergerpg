@@ -24,15 +24,16 @@
  */
 window.gameConfig = {
     // Настройки игрового поля
-    GRID_WIDTH: 9,              // Ширина сетки в клетках
+    GRID_WIDTH: 8,              // Ширина сетки в клетках
     GRID_HEIGHT: 12,             // Высота сетки в клеток (6 для игрока + 6 для врага)
-    CELL_SIZE: 48,              // Размер одной клетки в пикселях (уменьшен с 50 до 35)
+    CELL_SIZE: 80,              // 0 = автоматический расчет, или задайте конкретное значение
     PLAYER_AREA_HEIGHT: 6,      // Количество рядов для игрока
     ENEMY_AREA_HEIGHT: 6,       // Количество рядов для врага
-    VERSION: '1.2.1',           // Версия конфигурации для отладки
+    VERSION: '1.2.2',           // Версия конфигурации для отладки
     
     // Экономика
     STARTING_COINS: 10,         // Стартовый капитал в раунде 1
+    ROUND_COINS: 10,             // Монеты в каждом последующем раунде (2, 3, 4, 5...)
     
     // Типы юнитов и их характеристики
     UNIT_TYPES: {
@@ -43,7 +44,9 @@ window.gameConfig = {
             hp: 30,
             damage: 8,
             attackSpeed: 0.5,          // Очень быстрая атака
-            range: 10,                 // Дальность атаки (покрывает все поле)
+            range: 10,                 // Дальность атаки в клетках (покрывает все поле)
+            sellPrice: 2,              // Базовая цена продажи
+            sellPricePerStar: 2,       // Дополнительная цена за каждую звезду мерджа
             color: 0x4A90E2            // Синий цвет
         },
         WARRIOR: {
@@ -56,6 +59,8 @@ window.gameConfig = {
             range: 10, // Увеличен радиус для всего поля
             hasBattleCry: true,        // СПОСОБНОСТЬ: Боевой клич (2+ мечника ускоряют союзников)
             battleCryBonus: 0.25,      // Бонус к скорости атаки (25% быстрее)
+            sellPrice: 3,              // Базовая цена продажи
+            sellPricePerStar: 3,       // Дополнительная цена за каждую звезду мерджа
             color: 0xE24A4A
         },
         BARBARIAN: {
@@ -67,6 +72,8 @@ window.gameConfig = {
             attackSpeed: 1.5,
             range: 10,
             hasTaunt: true,              // СПОСОБНОСТЬ: Провокация (враги атакуют в первую очередь)
+            sellPrice: 4,                // Базовая цена продажи
+            sellPricePerStar: 4,         // Дополнительная цена за каждую звезду мерджа
             color: 0xFF8C00
         },
         HEALER: {
@@ -79,6 +86,8 @@ window.gameConfig = {
             range: 10, // Неограниченный радиус атаки (как у всех юнитов)
             healRange: 2, // Ограниченный радиус лечения
             healAmount: 8, // Количество HP за лечение
+            sellPrice: 3,              // Базовая цена продажи
+            sellPricePerStar: 3,       // Дополнительная цена за каждую звезду мерджа
             color: 0x32CD32
         },
         MAGE: {
@@ -90,6 +99,8 @@ window.gameConfig = {
             attackSpeed: 2.5, // Медленнее атакует
             range: 10, // Увеличен радиус для всего поля
             maxTargets: 3, // Атакует до 3 целей одновременно
+            sellPrice: 5,              // Базовая цена продажи
+            sellPricePerStar: 5,       // Дополнительная цена за каждую звезду мерджа
             color: 0x9B4AE2
         },
         TANK: {
@@ -102,6 +113,8 @@ window.gameConfig = {
             range: 10,
             hasShield: true,
             shieldReduction: 0.3,
+            sellPrice: 5,              // Базовая цена продажи
+            sellPricePerStar: 5,       // Дополнительная цена за каждую звезду мерджа
             color: 0xC0C0C0
         },
         ASSASSIN: {
@@ -114,6 +127,8 @@ window.gameConfig = {
             range: 10,
             hasCritical: true,
             criticalChance: 0.5,
+            sellPrice: 3,              // Базовая цена продажи
+            sellPricePerStar: 3,       // Дополнительная цена за каждую звезду мерджа
             color: 0x8B008B
         },
         DRUID: {
@@ -126,11 +141,18 @@ window.gameConfig = {
             range: 10,
             hasThorns: true,
             thornsDamage: 5,
+            sellPrice: 4,              // Базовая цена продажи
+            sellPricePerStar: 4,       // Дополнительная цена за каждую звезду мерджа
             color: 0x8B4513
         },
         WITCH: {
             name: 'Ведьма',
             size: { width: 2, height: 2 },
+            occupiedCells: [
+                { x: 0, y: 0 }, // Top-left
+                { x: 0, y: 1 }, // Bottom-left  
+                { x: 1, y: 1 }  // Bottom-right (missing top-right)
+            ],
             cost: 6,
             hp: 35,
             damage: 12,
@@ -139,6 +161,8 @@ window.gameConfig = {
             hasCurse: true,
             curseDamage: 2,
             curseRange: 2,
+            sellPrice: 6,              // Базовая цена продажи
+            sellPricePerStar: 6,       // Дополнительная цена за каждую звезду мерджа
             color: 0x4B0082
         }
     }
@@ -173,9 +197,10 @@ class GridSystem {
         this.gridHeight = height;
         this.cellSize = cellSize;
         
-        // Центрируем поле 9x12 на экране 480px с уменьшенным масштабом
-        this.gridOffsetX = (480 - (width * cellSize)) / 2; // Центрируем по горизонтали
-        this.gridOffsetY = 80; // Поднимаем поле выше
+        // Центрируем поле на экране
+        const screenWidth = this.scene.cameras.main.width;
+        this.gridOffsetX = (screenWidth - (width * cellSize)) / 2; // Центрируем по горизонтали
+        this.gridOffsetY = 100; // Отступ сверху
         
         console.log(`GridSystem: создаем сетку ${width}x${height}, смещение (${this.gridOffsetX}, ${this.gridOffsetY})`);
         
@@ -272,19 +297,41 @@ class GridSystem {
         };
     }
 
-    canPlaceUnit(gridX, gridY, size) {
-        // Проверяем границы
-        if (gridX < 0 || gridY < 0 || 
-            gridX + size.width > this.gridWidth || 
-            gridY + size.height > this.gridHeight) {
-            return false;
-        }
-        
-        // Проверяем, что клетки свободны
-        for (let y = gridY; y < gridY + size.height; y++) {
-            for (let x = gridX; x < gridX + size.width; x++) {
-                if (this.grid[y][x] !== null) {
+    canPlaceUnit(gridX, gridY, size, occupiedCells = null) {
+        // Если есть occupiedCells, используем их для проверки
+        if (occupiedCells) {
+            // Проверяем границы для L-образной формы
+            const maxX = Math.max(...occupiedCells.map(cell => cell.x));
+            const maxY = Math.max(...occupiedCells.map(cell => cell.y));
+            
+            if (gridX < 0 || gridY < 0 || 
+                gridX + maxX >= this.gridWidth || 
+                gridY + maxY >= this.gridHeight) {
+                return false;
+            }
+            
+            // Проверяем, что занятые клетки свободны
+            for (const cell of occupiedCells) {
+                const checkX = gridX + cell.x;
+                const checkY = gridY + cell.y;
+                if (this.grid[checkY][checkX] !== null) {
                     return false;
+                }
+            }
+        } else {
+            // Стандартная проверка для прямоугольных форм
+            if (gridX < 0 || gridY < 0 || 
+                gridX + size.width > this.gridWidth || 
+                gridY + size.height > this.gridHeight) {
+                return false;
+            }
+            
+            // Проверяем, что клетки свободны
+            for (let y = gridY; y < gridY + size.height; y++) {
+                for (let x = gridX; x < gridX + size.width; x++) {
+                    if (this.grid[y][x] !== null) {
+                        return false;
+                    }
                 }
             }
         }
@@ -326,11 +373,27 @@ class GridSystem {
      * @returns {Object} - {canPlace: boolean, isMerge: boolean, existingUnit: Unit|null}
      */
     canPlaceOrMerge(gridX, gridY, size, unitType, isEnemy) {
+        const unitData = window.gameConfig.UNIT_TYPES[unitType];
+        const occupiedCells = unitData.occupiedCells;
+        
         // Проверяем границы
-        if (gridX < 0 || gridY < 0 || 
-            gridX + size.width > this.gridWidth || 
-            gridY + size.height > this.gridHeight) {
-            return {canPlace: false, isMerge: false, existingUnit: null};
+        if (occupiedCells) {
+            // L-образная форма
+            const maxX = Math.max(...occupiedCells.map(cell => cell.x));
+            const maxY = Math.max(...occupiedCells.map(cell => cell.y));
+            
+            if (gridX < 0 || gridY < 0 || 
+                gridX + maxX >= this.gridWidth || 
+                gridY + maxY >= this.gridHeight) {
+                return {canPlace: false, isMerge: false, existingUnit: null};
+            }
+        } else {
+            // Стандартная прямоугольная форма
+            if (gridX < 0 || gridY < 0 || 
+                gridX + size.width > this.gridWidth || 
+                gridY + size.height > this.gridHeight) {
+                return {canPlace: false, isMerge: false, existingUnit: null};
+            }
         }
         
         // Проверяем область размещения
@@ -342,8 +405,23 @@ class GridSystem {
             return {canPlace: false, isMerge: false, existingUnit: null};
         }
         
-        // Проверяем, есть ли юнит на позиции
-        const existingUnit = this.getUnitAt(gridX, gridY);
+        // Проверяем, есть ли юнит на позиции (для L-образных форм проверяем все занятые клетки)
+        let existingUnit = null;
+        if (occupiedCells) {
+            // Для L-образной формы проверяем все занятые клетки
+            for (const cell of occupiedCells) {
+                const x = gridX + cell.x;
+                const y = gridY + cell.y;
+                const unitAtCell = this.getUnitAt(x, y);
+                if (unitAtCell) {
+                    existingUnit = unitAtCell;
+                    break;
+                }
+            }
+        } else {
+            // Для обычных форм проверяем только левую верхнюю клетку
+            existingUnit = this.getUnitAt(gridX, gridY);
+        }
         
         if (existingUnit) {
             // Проверяем возможность мерджа
@@ -356,10 +434,22 @@ class GridSystem {
         }
         
         // Проверяем, что все клетки свободны
-        for (let y = gridY; y < gridY + size.height; y++) {
-            for (let x = gridX; x < gridX + size.width; x++) {
+        if (occupiedCells) {
+            // L-образная форма - проверяем только занятые клетки
+            for (const cell of occupiedCells) {
+                const x = gridX + cell.x;
+                const y = gridY + cell.y;
                 if (this.grid[y][x] !== null) {
                     return {canPlace: false, isMerge: false, existingUnit: null};
+                }
+            }
+        } else {
+            // Стандартная прямоугольная форма
+            for (let y = gridY; y < gridY + size.height; y++) {
+                for (let x = gridX; x < gridX + size.width; x++) {
+                    if (this.grid[y][x] !== null) {
+                        return {canPlace: false, isMerge: false, existingUnit: null};
+                    }
                 }
             }
         }
@@ -395,16 +485,29 @@ class GridSystem {
 
     placeUnit(gridX, gridY, unit) {
         const size = unit.getSize();
+        const unitData = window.gameConfig.UNIT_TYPES[unit.unitType];
+        const occupiedCells = unitData.occupiedCells;
         
         console.log(`Размещаем юнит ${unit.constructor.name} в позиции (${gridX}, ${gridY}) размером ${size.width}x${size.height}`);
         
         // Очищаем старые позиции юнита
         this.removeUnit(unit);
         
-        for (let y = gridY; y < gridY + size.height; y++) {
-            for (let x = gridX; x < gridX + size.width; x++) {
+        if (occupiedCells) {
+            // L-образная форма - занимаем только указанные клетки
+            for (const cell of occupiedCells) {
+                const x = gridX + cell.x;
+                const y = gridY + cell.y;
                 this.grid[y][x] = unit;
-                console.log(`Занимаем клетку (${x}, ${y})`);
+                console.log(`Занимаем L-клетку (${x}, ${y})`);
+            }
+        } else {
+            // Стандартная прямоугольная форма
+            for (let y = gridY; y < gridY + size.height; y++) {
+                for (let x = gridX; x < gridX + size.width; x++) {
+                    this.grid[y][x] = unit;
+                    console.log(`Занимаем клетку (${x}, ${y})`);
+                }
             }
         }
         
@@ -414,10 +517,47 @@ class GridSystem {
         const centerX = startX + (size.width * this.cellSize / 2);
         const centerY = startY + (size.height * this.cellSize / 2);
         
+        // Обновляем визуальное представление для L-образных юнитов
+        if (occupiedCells) {
+            unit.createVisuals();
+            // Добавляем drag-and-drop для L-образных юнитов
+            if (!unit.isEnemy) {
+                const interactiveElements = unit.spriteElements || [unit.sprite];
+                interactiveElements.forEach(element => {
+                    if (element && element.setInteractive) {
+                        // Для контейнеров нужно указать область взаимодействия
+                        if (element.type === 'Container') {
+                            element.setSize(element.width || 100, element.height || 100);
+                        }
+                        element.setInteractive({ draggable: true })
+                            .on('dragstart', (pointer) => {
+                                console.log('dragstart событие для:', unit.constructor.name);
+                                unit.scene.isDraggingFromField = true;
+                                unit.scene.onUnitDragStart(unit, pointer);
+                            })
+                            .on('drag', (pointer, dragX, dragY) => {
+                                if (unit.sprite && unit.sprite.setPosition) {
+                                    unit.sprite.setPosition(
+                                        unit.scene.gridSystem.gridOffsetX + (unit.gridX * unit.scene.gridSystem.cellSize) + unit.scene.gridSystem.cellSize / 2,
+                                        unit.scene.gridSystem.gridOffsetY + (unit.gridY * unit.scene.gridSystem.cellSize) + unit.scene.gridSystem.cellSize / 2
+                                    );
+                                }
+                                unit.scene.onUnitDrag(pointer);
+                            })
+                            .on('dragend', (pointer, dragX, dragY) => {
+                                console.log('dragend событие для:', unit.constructor.name);
+                                unit.scene.onUnitDragEnd(unit, pointer, dragX, dragY);
+                            });
+                    }
+                });
+            }
+        }
+        
         unit.setPosition(centerX, centerY);
         console.log(`Установлена позиция юнита: (${centerX}, ${centerY})`);
         
-        // Обновляем HP бар после размещения
+        // Пересоздаем HP бар после размещения
+        unit.createHpBar(centerX, centerY);
         if (unit.hpBar) {
             unit.updateHpBar();
         }
@@ -430,6 +570,16 @@ class GridSystem {
                     this.grid[y][x] = null;
                 }
             }
+        }
+        
+        // Очищаем старые HP бары и эффекты при перемещении
+        if (unit.hpBar) {
+            unit.hpBar.destroy();
+            unit.hpBar = null;
+        }
+        if (unit.hpBarBg) {
+            unit.hpBarBg.destroy();
+            unit.hpBarBg = null;
         }
     }
 
@@ -489,76 +639,124 @@ class Unit {
     }
 
     createVisuals() {
-        // Вычисляем позицию левого верхнего угла юнита на сетке
-        const startX = this.scene.gridSystem.gridOffsetX + (this.gridX * this.scene.gridSystem.cellSize);
-        const startY = this.scene.gridSystem.gridOffsetY + (this.gridY * this.scene.gridSystem.cellSize);
-        
-        // Вычисляем размер спрайта точно по размеру клеток
-        const spriteWidth = this.size.width * this.scene.gridSystem.cellSize;
-        const spriteHeight = this.size.height * this.scene.gridSystem.cellSize;
-        
-        // Центрируем спрайт в области, которую занимает юнит
-        const centerX = startX + (spriteWidth / 2);
-        const centerY = startY + (spriteHeight / 2);
-        
-        console.log(`Создаем юнит ${this.constructor.name}: размер ${this.size.width}x${this.size.height}, спрайт ${spriteWidth}x${spriteHeight}, позиция (${centerX}, ${centerY})`);
-        
-        // Определяем спрайт в зависимости от типа юнита
-        let spriteKey = 'archer'; // по умолчанию
-        
-        // Определяем тип по классу, если unitType еще не установлен
-        if (this.unitType) {
-            if (this.unitType === 'WARRIOR') spriteKey = 'warrior';
-            else if (this.unitType === 'BARBARIAN') spriteKey = 'barbarian';
-            else if (this.unitType === 'HEALER') spriteKey = 'healer';
-            else if (this.unitType === 'MAGE') spriteKey = 'mage';
-        } else {
-            // Fallback по классу
-            if (this.constructor.name === 'Warrior') spriteKey = 'warrior';
-            else if (this.constructor.name === 'Barbarian') spriteKey = 'barbarian';
-            else if (this.constructor.name === 'Healer') spriteKey = 'healer';
-            else if (this.constructor.name === 'Mage') spriteKey = 'mage';
-            else if (this.constructor.name === 'Tank') spriteKey = 'tank';
-            else if (this.constructor.name === 'Assassin') spriteKey = 'assassin';
-            else if (this.constructor.name === 'Druid') spriteKey = 'druid';
-            else if (this.constructor.name === 'Witch') spriteKey = 'witch';
+        // Очищаем старые визуальные элементы
+        if (this.spriteElements) {
+            this.spriteElements.forEach(elem => {
+                if (elem && elem.destroy) elem.destroy();
+            });
+            this.spriteElements = [];
+        }
+        if (this.sprite && this.sprite.destroy) {
+            this.sprite.destroy();
         }
         
-        console.log('Создаем спрайт:', spriteKey, 'для юнита:', this.constructor.name);
+        // Проверяем, есть ли у юнита L-образная форма
+        const unitData = window.gameConfig.UNIT_TYPES[this.unitType];
+        const occupiedCells = unitData?.occupiedCells;
         
-        // Пытаемся загрузить спрайт, если не получается - используем прямоугольник
-        if (this.scene.textures.exists(spriteKey)) {
-            console.log('Спрайт найден, создаем изображение:', spriteKey);
-            this.sprite = this.scene.add.image(centerX, centerY, spriteKey);
-            this.sprite.setDisplaySize(spriteWidth, spriteHeight);
+        if (occupiedCells) {
+            // Создаем L-образную форму из отдельных элементов
+            this.spriteElements = [];
+            
+            occupiedCells.forEach(cell => {
+                const cellX = this.scene.gridSystem.gridOffsetX + 
+                    ((this.gridX + cell.x) * this.scene.gridSystem.cellSize) + 
+                    this.scene.gridSystem.cellSize / 2;
+                const cellY = this.scene.gridSystem.gridOffsetY + 
+                    ((this.gridY + cell.y) * this.scene.gridSystem.cellSize) + 
+                    this.scene.gridSystem.cellSize / 2;
+                
+                const rect = this.scene.add.rectangle(
+                    cellX, cellY,
+                    this.scene.gridSystem.cellSize * 0.8,
+                    this.scene.gridSystem.cellSize * 0.8,
+                    this.color
+                );
+                rect.setStrokeStyle(2, 0x000000);
+                rect.setDepth(100);
+                this.spriteElements.push(rect);
+            });
+            
+            // Создаем контейнер для L-формы
+            this.sprite = this.scene.add.container(0, 0);
+            this.spriteElements.forEach(elem => this.sprite.add(elem));
+            
+            // Центр для HP бара
+            const centerX = this.scene.gridSystem.gridOffsetX + 
+                ((this.gridX + this.size.width / 2) * this.scene.gridSystem.cellSize);
+            const centerY = this.scene.gridSystem.gridOffsetY + 
+                ((this.gridY + this.size.height / 2) * this.scene.gridSystem.cellSize);
+            
+            this.createHpBar(centerX, centerY);
         } else {
-            console.log('Спрайт не найден, используем прямоугольник:', spriteKey);
-            this.sprite = this.scene.add.rectangle(
+            // Стандартная прямоугольная форма
+            const startX = this.scene.gridSystem.gridOffsetX + (this.gridX * this.scene.gridSystem.cellSize);
+            const startY = this.scene.gridSystem.gridOffsetY + (this.gridY * this.scene.gridSystem.cellSize);
+            
+            const spriteWidth = this.size.width * this.scene.gridSystem.cellSize;
+            const spriteHeight = this.size.height * this.scene.gridSystem.cellSize;
+            
+            const centerX = startX + (spriteWidth / 2);
+            const centerY = startY + (spriteHeight / 2);
+            
+            console.log(`Создаем юнит ${this.constructor.name}: размер ${this.size.width}x${this.size.height}, спрайт ${spriteWidth}x${spriteHeight}, позиция (${centerX}, ${centerY})`);
+            
+            // Определяем спрайт в зависимости от типа юнита
+            let spriteKey = 'archer';
+            
+            if (this.unitType) {
+                if (this.unitType === 'WARRIOR') spriteKey = 'warrior';
+                else if (this.unitType === 'BARBARIAN') spriteKey = 'barbarian';
+                else if (this.unitType === 'HEALER') spriteKey = 'healer';
+                else if (this.unitType === 'MAGE') spriteKey = 'mage';
+            } else {
+                if (this.constructor.name === 'Warrior') spriteKey = 'warrior';
+                else if (this.constructor.name === 'Barbarian') spriteKey = 'barbarian';
+                else if (this.constructor.name === 'Healer') spriteKey = 'healer';
+                else if (this.constructor.name === 'Mage') spriteKey = 'mage';
+                else if (this.constructor.name === 'Tank') spriteKey = 'tank';
+                else if (this.constructor.name === 'Assassin') spriteKey = 'assassin';
+                else if (this.constructor.name === 'Druid') spriteKey = 'druid';
+                else if (this.constructor.name === 'Witch') spriteKey = 'witch';
+            }
+            
+            console.log('Создаем спрайт:', spriteKey, 'для юнита:', this.constructor.name);
+            
+            if (this.scene.textures.exists(spriteKey)) {
+                console.log('Спрайт найден, создаем изображение:', spriteKey);
+                this.sprite = this.scene.add.image(centerX, centerY, spriteKey);
+                this.sprite.setDisplaySize(spriteWidth, spriteHeight);
+            } else {
+                console.log('Спрайт не найден, используем прямоугольник:', spriteKey);
+                this.sprite = this.scene.add.rectangle(
+                    centerX, 
+                    centerY, 
+                    spriteWidth,
+                    spriteHeight,
+                    this.color
+                );
+            }
+            
+            // Добавляем рамку
+            this.scene.add.rectangle(
                 centerX, 
                 centerY, 
                 spriteWidth,
                 spriteHeight,
-                this.color
-            );
+                0x000000,
+                0
+            ).setStrokeStyle(2, 0x333333);
+            
+            this.createHpBar(centerX, centerY);
         }
-        
-        // Добавляем рамку
-        this.scene.add.rectangle(
-            centerX, 
-            centerY, 
-            spriteWidth,
-            spriteHeight,
-            0x000000,
-            0
-        ).setStrokeStyle(2, 0x333333);
-        
-        this.createHpBar(centerX, centerY);
         
         // Для врагов делаем спрайт темнее
         if (this.isEnemy) {
             if (this.sprite.setTint) {
+                // Для image объектов используем setTint
                 this.sprite.setTint(0x666666);
-            } else {
+            } else if (this.sprite.setFillStyle) {
+                // Для rectangle объектов используем setFillStyle
                 this.sprite.setFillStyle(0x666666);
             }
         }
@@ -566,22 +764,51 @@ class Unit {
         // Добавляем drag-and-drop для юнитов игрока
         if (!this.isEnemy) {
             console.log('Добавляем drag-and-drop для юнита:', this.constructor.name);
-            this.sprite.setInteractive({ draggable: true })
-                .on('dragstart', (pointer) => {
-                    console.log('dragstart событие для:', this.constructor.name);
-                    this.scene.onUnitDragStart(this, pointer);
-                })
-                .on('drag', (pointer, dragX, dragY) => {
-                    this.scene.onUnitDrag(pointer);
-                })
-                .on('dragend', (pointer, dragX, dragY) => {
-                    console.log('dragend событие для:', this.constructor.name);
-                    this.scene.onUnitDragEnd(this, pointer, dragX, dragY);
-                });
+            
+            const interactiveElements = this.spriteElements || [this.sprite];
+            
+            interactiveElements.forEach(element => {
+                if (element && element.setInteractive) {
+                    // Для контейнеров нужно указать область взаимодействия
+                    if (element.type === 'Container') {
+                        element.setSize(element.width || 100, element.height || 100);
+                    }
+                    element.setInteractive({ draggable: true })
+                        .on('dragstart', (pointer) => {
+                            console.log('dragstart событие для:', this.constructor.name);
+                            this.scene.isDraggingFromField = true;
+                            this.scene.onUnitDragStart(this, pointer);
+                        })
+                        .on('drag', (pointer, dragX, dragY) => {
+                            // Не двигаем фактический спрайт юнита, только призрак
+                            if (this.sprite && this.sprite.setPosition) {
+                                this.sprite.setPosition(
+                                    this.scene.gridSystem.gridOffsetX + (this.gridX * this.scene.gridSystem.cellSize) + this.scene.gridSystem.cellSize / 2,
+                                    this.scene.gridSystem.gridOffsetY + (this.gridY * this.scene.gridSystem.cellSize) + this.scene.gridSystem.cellSize / 2
+                                );
+                            }
+                            this.scene.onUnitDrag(pointer);
+                        })
+                        .on('dragend', (pointer, dragX, dragY) => {
+                            console.log('dragend событие для:', this.constructor.name);
+                            this.scene.onUnitDragEnd(this, pointer, dragX, dragY);
+                        });
+                }
+            });
         }
     }
 
     createHpBar(x, y) {
+        // Очищаем старые HP бары
+        if (this.hpBar) {
+            this.hpBar.destroy();
+            this.hpBar = null;
+        }
+        if (this.hpBarBg) {
+            this.hpBarBg.destroy();
+            this.hpBarBg = null;
+        }
+        
         const barWidth = this.size.width * this.scene.gridSystem.cellSize * 0.6;
         const barHeight = 4;
         const barY = y - (this.size.height * this.scene.gridSystem.cellSize * 0.4);
@@ -611,14 +838,38 @@ class Unit {
     }
 
     setPosition(x, y) {
-        if (this.sprite) {
+        const unitData = window.gameConfig.UNIT_TYPES[this.unitType];
+        const occupiedCells = unitData?.occupiedCells;
+        
+        if (this.spriteElements && occupiedCells) {
+            // Reposition each element of L-shape
+            occupiedCells.forEach((cell, index) => {
+                if (this.spriteElements[index]) {
+                    const cellX = this.scene.gridSystem.gridOffsetX + 
+                        ((this.gridX + cell.x) * this.scene.gridSystem.cellSize) + 
+                        this.scene.gridSystem.cellSize / 2;
+                    const cellY = this.scene.gridSystem.gridOffsetY + 
+                        ((this.gridY + cell.y) * this.scene.gridSystem.cellSize) + 
+                        this.scene.gridSystem.cellSize / 2;
+                    this.spriteElements[index].setPosition(cellX, cellY);
+                }
+            });
+        } else if (this.sprite) {
+            // Standard positioning
             this.sprite.setPosition(x, y);
-            if (this.hpBar) {
-                this.hpBar.setPosition(x, y - (this.size.height * this.scene.gridSystem.cellSize * 0.4));
-            }
-            if (this.hpBarBg) {
-                this.hpBarBg.setPosition(x, y - (this.size.height * this.scene.gridSystem.cellSize * 0.4));
-            }
+        }
+        
+        // Position HP bar at center of bounding box
+        const centerX = this.scene.gridSystem.gridOffsetX + 
+            ((this.gridX + this.size.width / 2) * this.scene.gridSystem.cellSize);
+        const centerY = this.scene.gridSystem.gridOffsetY + 
+            ((this.gridY + this.size.height / 2) * this.scene.gridSystem.cellSize);
+            
+        if (this.hpBar) {
+            this.hpBar.setPosition(centerX, centerY - (this.size.height * this.scene.gridSystem.cellSize * 0.4));
+        }
+        if (this.hpBarBg) {
+            this.hpBarBg.setPosition(centerX, centerY - (this.size.height * this.scene.gridSystem.cellSize * 0.4));
         }
     }
 
@@ -672,24 +923,47 @@ class Unit {
 
     createDamageEffect() {
         // Эффект повреждения - меняем цвет на красный и обратно
-        if (this.sprite.setTint) {
-            // Это изображение - используем setTint
-            const originalTint = this.isEnemy ? 0x666666 : 0xFFFFFF;
-            this.sprite.setTint(0xFF0000);
-            this.scene.time.delayedCall(100, () => {
-                if (this.sprite && this.sprite.scene) {
-                    this.sprite.setTint(originalTint);
+        if (this.spriteElements && this.spriteElements.length > 0) {
+            // L-shaped units - apply effect to all elements
+            this.spriteElements.forEach(elem => {
+                if (elem.setTint) {
+                    elem.setTint(0xFF0000);
+                } else if (elem.setFillStyle) {
+                    elem.setFillStyle(0xFF0000);
                 }
             });
-        } else {
-            // Это прямоугольник - используем setFillStyle
-            const originalColor = this.isEnemy ? 0x666666 : this.color;
-            this.sprite.setFillStyle(0xFF0000);
+            
             this.scene.time.delayedCall(100, () => {
-                if (this.sprite && this.sprite.scene) {
-                    this.sprite.setFillStyle(originalColor);
-                }
+                this.spriteElements.forEach(elem => {
+                    if (elem && elem.scene) {
+                        if (elem.setTint) {
+                            elem.setTint(this.isEnemy ? 0x666666 : 0xFFFFFF);
+                        } else if (elem.setFillStyle) {
+                            elem.setFillStyle(this.isEnemy ? 0x666666 : this.color);
+                        }
+                    }
+                });
             });
+        } else if (this.sprite) {
+            if (this.sprite.setTint) {
+                // Это изображение - используем setTint
+                const originalTint = this.isEnemy ? 0x666666 : 0xFFFFFF;
+                this.sprite.setTint(0xFF0000);
+                this.scene.time.delayedCall(100, () => {
+                    if (this.sprite && this.sprite.scene) {
+                        this.sprite.setTint(originalTint);
+                    }
+                });
+            } else if (this.sprite.setFillStyle) {
+                // Это прямоугольник - используем setFillStyle
+                const originalColor = this.isEnemy ? 0x666666 : this.color;
+                this.sprite.setFillStyle(0xFF0000);
+                this.scene.time.delayedCall(100, () => {
+                    if (this.sprite && this.sprite.scene) {
+                        this.sprite.setFillStyle(originalColor);
+                    }
+                });
+            }
         }
     }
 
@@ -757,13 +1031,27 @@ class Unit {
         console.log(`Юнит ${this.constructor.name} убит в позиции (${this.gridX}, ${this.gridY})`);
         
         // Делаем юнита невидимым, но НЕ уничтожаем (для воскрешения)
-        this.scene.tweens.add({
-            targets: this.sprite,
-            alpha: 0,
-            scaleX: 0,
-            scaleY: 0,
-            duration: 300
-        });
+        if (this.spriteElements && this.spriteElements.length > 0) {
+            // L-shaped units - animate all elements
+            this.spriteElements.forEach(elem => {
+                this.scene.tweens.add({
+                    targets: elem,
+                    alpha: 0,
+                    scaleX: 0,
+                    scaleY: 0,
+                    duration: 300
+                });
+            });
+        } else if (this.sprite) {
+            // Standard units
+            this.scene.tweens.add({
+                targets: this.sprite,
+                alpha: 0,
+                scaleX: 0,
+                scaleY: 0,
+                duration: 300
+            });
+        }
         
         // Скрываем hpBar, но не уничтожаем полностью
         if (this.hpBar) this.hpBar.setVisible(false);
@@ -771,6 +1059,12 @@ class Unit {
     }
 
     destroy() {
+        if (this.spriteElements) {
+            this.spriteElements.forEach(elem => {
+                if (elem && elem.destroy) elem.destroy();
+            });
+            this.spriteElements = [];
+        }
         if (this.sprite) this.sprite.destroy();
         if (this.hpBar) this.hpBar.destroy();
         if (this.hpBarBg) this.hpBarBg.destroy();
@@ -782,8 +1076,36 @@ class Unit {
 
     getDistanceTo(otherUnit) {
         // Считаем расстояние между центрами юнитов
-        const dx = this.sprite.x - otherUnit.sprite.x;
-        const dy = this.sprite.y - otherUnit.sprite.y;
+        let thisX, thisY, otherX, otherY;
+        
+        if (this.spriteElements && this.spriteElements.length > 0) {
+            // L-shaped unit - use center of bounding box
+            thisX = this.scene.gridSystem.gridOffsetX + 
+                ((this.gridX + this.size.width / 2) * this.scene.gridSystem.cellSize);
+            thisY = this.scene.gridSystem.gridOffsetY + 
+                ((this.gridY + this.size.height / 2) * this.scene.gridSystem.cellSize);
+        } else if (this.sprite) {
+            thisX = this.sprite.x;
+            thisY = this.sprite.y;
+        } else {
+            return 0;
+        }
+        
+        if (otherUnit.spriteElements && otherUnit.spriteElements.length > 0) {
+            // L-shaped unit - use center of bounding box
+            otherX = otherUnit.scene.gridSystem.gridOffsetX + 
+                ((otherUnit.gridX + otherUnit.size.width / 2) * otherUnit.scene.gridSystem.cellSize);
+            otherY = otherUnit.scene.gridSystem.gridOffsetY + 
+                ((otherUnit.gridY + otherUnit.size.height / 2) * otherUnit.scene.gridSystem.cellSize);
+        } else if (otherUnit.sprite) {
+            otherX = otherUnit.sprite.x;
+            otherY = otherUnit.sprite.y;
+        } else {
+            return 0;
+        }
+        
+        const dx = thisX - otherX;
+        const dy = thisY - otherY;
         return Math.sqrt(dx * dx + dy * dy);
     }
 
@@ -899,17 +1221,24 @@ class Unit {
     }
 
     updateVisuals() {
-        if (this.sprite) {
-            // Проверяем тип спрайта и используем соответствующий метод
+        if (this.spriteElements && this.spriteElements.length > 0) {
+            // Handle L-shaped units (multiple elements)
+            this.spriteElements.forEach(elem => {
+                if (elem.setTint) {
+                    elem.setTint(this.isEnemy ? 0x666666 : 0xFFFFFF);
+                } else if (elem.setFillStyle) {
+                    elem.setFillStyle(this.isEnemy ? 0x666666 : this.color);
+                }
+            });
+        } else if (this.sprite) {
+            // Handle standard units (single sprite)
             if (this.sprite.setTint) {
-                // Это изображение - используем setTint
                 if (this.isEnemy) {
                     this.sprite.setTint(0x666666);
                 } else {
                     this.sprite.setTint(0xFFFFFF);
                 }
-            } else {
-                // Это прямоугольник - используем setFillStyle
+            } else if (this.sprite.setFillStyle) {
                 if (this.isEnemy) {
                     this.sprite.setFillStyle(0x666666);
                 } else {
@@ -917,6 +1246,18 @@ class Unit {
                 }
             }
         }
+    }
+
+    /**
+     * Рассчитывает цену продажи юнита с учетом уровня мерджа
+     */
+    getSellPrice() {
+        const unitData = window.gameConfig.UNIT_TYPES[this.unitType];
+        if (!unitData) return 0;
+        
+        const basePrice = unitData.sellPrice || unitData.cost;
+        const starBonus = (unitData.sellPricePerStar || basePrice) * this.mergeLevel;
+        return basePrice + starBonus;
     }
 }
 
@@ -1287,7 +1628,11 @@ class Barbarian extends Unit {
         
         // Обновляем позицию эффекта провокации
         if (this.tauntGlow) {
-            this.tauntGlow.setPosition(x, y);
+            const centerX = this.scene.gridSystem.gridOffsetX + 
+                ((this.gridX + this.size.width / 2) * this.scene.gridSystem.cellSize);
+            const centerY = this.scene.gridSystem.gridOffsetY + 
+                ((this.gridY + this.size.height / 2) * this.scene.gridSystem.cellSize);
+            this.tauntGlow.setPosition(centerX, centerY);
         }
     }
     
@@ -1483,7 +1828,11 @@ class Tank extends Unit {
         
         // Обновляем позицию эффекта щита
         if (this.shieldGlow) {
-            this.shieldGlow.setPosition(x, y);
+            const centerX = this.scene.gridSystem.gridOffsetX + 
+                ((this.gridX + this.size.width / 2) * this.scene.gridSystem.cellSize);
+            const centerY = this.scene.gridSystem.gridOffsetY + 
+                ((this.gridY + this.size.height / 2) * this.scene.gridSystem.cellSize);
+            this.shieldGlow.setPosition(centerX, centerY);
         }
     }
     
@@ -1605,7 +1954,11 @@ class Druid extends Unit {
         
         // Обновляем позицию эффекта шипов
         if (this.thornsGlow) {
-            this.thornsGlow.setPosition(x, y);
+            const centerX = this.scene.gridSystem.gridOffsetX + 
+                ((this.gridX + this.size.width / 2) * this.scene.gridSystem.cellSize);
+            const centerY = this.scene.gridSystem.gridOffsetY + 
+                ((this.gridY + this.size.height / 2) * this.scene.gridSystem.cellSize);
+            this.thornsGlow.setPosition(centerX, centerY);
         }
     }
     
@@ -1711,7 +2064,11 @@ class Witch extends Unit {
         
         // Обновляем позицию эффекта проклятия
         if (this.curseGlow) {
-            this.curseGlow.setPosition(x, y);
+            const centerX = this.scene.gridSystem.gridOffsetX + 
+                ((this.gridX + this.size.width / 2) * this.scene.gridSystem.cellSize);
+            const centerY = this.scene.gridSystem.gridOffsetY + 
+                ((this.gridY + this.size.height / 2) * this.scene.gridSystem.cellSize);
+            this.curseGlow.setPosition(centerX, centerY);
         }
     }
     
@@ -1823,14 +2180,12 @@ class BattleSystem {
         validTargets.forEach(target => {
             if (!target.isAlive()) return;
             
-            const targetPos = target.getPosition();
-            const distance = Math.sqrt(
-                Math.pow(unitPos.x - targetPos.x, 2) + Math.pow(unitPos.y - targetPos.y, 2)
-            );
+            // Используем расстояние в клетках сетки
+            const gridDistance = unit.getGridDistanceTo(target);
             
-            if (distance <= unit.range && distance < nearestDistance) {
+            if (gridDistance <= unit.range && gridDistance < nearestDistance) {
                 nearestTarget = target;
-                nearestDistance = distance;
+                nearestDistance = gridDistance;
             }
         });
         
@@ -1940,6 +2295,7 @@ class GameScene extends Phaser.Scene {
         this.hintText = null;
         this.shopUnits = []; // Случайные юниты в магазине
         this.shopCards = []; // Карточки магазина
+        this.sellArea = null; // Область продажи (null когда не активна)
         this.currentRound = 1; // Текущий раунд (1-5)
         this.maxRounds = 5; // Максимум раундов (Best of 5)
         this.winsNeeded = 3; // Нужно 3 победы для победы в матче
@@ -1949,6 +2305,7 @@ class GameScene extends Phaser.Scene {
         
         // Drag-and-Drop состояние
         this.isDragging = false;           // Флаг перетаскивания
+        this.isDraggingFromField = false;  // Флаг перетаскивания с поля
         this.dragGhost = null;             // Призрачная копия юнита
         this.dragGhostElements = [];       // Элементы призрака (иконка, рамка и тд)
         this.highlightedCells = [];        // Подсвеченные клетки
@@ -2021,25 +2378,47 @@ class GameScene extends Phaser.Scene {
 
     createGameField() {
         const { GRID_WIDTH, GRID_HEIGHT, CELL_SIZE } = window.gameConfig;
-        console.log(`Создаем поле: ${GRID_WIDTH}x${GRID_HEIGHT}, размер клетки: ${CELL_SIZE}`);
-        this.gridSystem.createGrid(GRID_WIDTH, GRID_HEIGHT, CELL_SIZE);
+        
+        // Используем CELL_SIZE из конфигурации, если он задан
+        let finalCellSize;
+        if (CELL_SIZE && CELL_SIZE > 0) {
+            finalCellSize = CELL_SIZE;
+            console.log(`Используем размер клетки из конфигурации: ${finalCellSize}`);
+        } else {
+            // Иначе рассчитываем динамически
+            const screenWidth = this.cameras.main.width;
+            const availableWidth = screenWidth - 100; // 50px отступ с каждой стороны
+            const cellSize = Math.floor(availableWidth / GRID_WIDTH);
+            
+            // Ограничиваем размер клетки, чтобы поле не было слишком большим
+            const maxCellSize = 70; // Оптимальный размер клетки для витрины
+            finalCellSize = Math.min(cellSize, maxCellSize);
+            console.log(`Рассчитываем размер клетки динамически: ${finalCellSize} (экрана: ${screenWidth}px)`);
+        }
+        
+        console.log(`Создаем поле: ${GRID_WIDTH}x${GRID_HEIGHT}, размер клетки: ${finalCellSize}`);
+        this.gridSystem.createGrid(GRID_WIDTH, GRID_HEIGHT, finalCellSize);
     }
 
     createUI() {
-        this.fightButton = this.add.rectangle(400, 50, 120, 40, 0xE24A4A)
+        // Адаптивное позиционирование UI элементов
+        const screenWidth = this.cameras.main.width;
+        const fightButtonX = screenWidth - 80; // 80px от правого края
+        
+        this.fightButton = this.add.rectangle(fightButtonX, 50, 120, 40, 0xE24A4A)
             .setInteractive()
             .on('pointerdown', () => {
                 this.startBattle();
             });
 
-        this.add.text(400, 50, 'FIGHT', {
-            fontSize: '16px',
+        this.add.text(fightButtonX, 50, 'FIGHT', {
+            fontSize: '20px',
             fill: '#ffffff',
             fontStyle: 'bold'
         }).setOrigin(0.5);
 
         this.coinsText = this.add.text(80, 50, `Монеты: ${this.economySystem.getCoins()}`, {
-            fontSize: '16px',
+            fontSize: '20px',
             fill: '#FFD700',
             fontStyle: 'bold'
         });
@@ -2054,14 +2433,190 @@ class GameScene extends Phaser.Scene {
     }
 
     createShop() {
-        const shopY = 750; // Опущено еще ниже для поля 9x12 (было 650)
+        // Рассчитываем позицию витрины на основе размера поля
+        const { GRID_HEIGHT } = window.gameConfig;
+        const fieldHeight = GRID_HEIGHT * this.gridSystem.cellSize;
+        const shopY = fieldHeight + 300; // 300 пикселей отступ от поля
         
         // Генерируем 4 случайных юнита
         this.generateShopUnits();
-        this.createShopCards(shopY);
+        
+        // Адаптивное позиционирование карточек магазина
+        const { startX, cardSpacing, cardWidth } = this.calculateShopPositions();
+        
+        this.createShopCards(shopY, startX, cardSpacing, cardWidth);
         
         // Кнопка реролла
-        this.createRerollButton(shopY);
+        this.createRerollButton(shopY, startX, cardSpacing);
+    }
+
+    calculateShopPositions() {
+        const screenWidth = this.cameras.main.width;
+        const cardWidth = 90; // Немного уменьшена ширина карточки
+        const cardSpacing = 100; // Уменьшен интервал между карточками
+        const totalWidth = (this.shopUnits.length * cardSpacing) - (cardSpacing - cardWidth);
+        const startX = (screenWidth - totalWidth) / 2;
+        return { startX, cardSpacing, cardWidth };
+    }
+
+    /**
+     * Скрывает витрину и все связанные элементы
+     */
+    hideShop() {
+        // Скрываем карточки магазина
+        this.shopCards.forEach(cardData => {
+            if (cardData) {
+                if (cardData.card && cardData.card.setVisible) cardData.card.setVisible(false);
+                if (cardData.nameText && cardData.nameText.setVisible) cardData.nameText.setVisible(false);
+                if (cardData.costText && cardData.costText.setVisible) cardData.costText.setVisible(false);
+                if (cardData.icon && cardData.icon.setVisible) cardData.icon.setVisible(false);
+                if (cardData.border && cardData.border.setVisible) cardData.border.setVisible(false);
+                if (cardData.specialIcon && cardData.specialIcon.setVisible) cardData.specialIcon.setVisible(false);
+                if (cardData.abilityIndicator && cardData.abilityIndicator.setVisible) cardData.abilityIndicator.setVisible(false);
+            }
+        });
+        
+        // Скрываем кнопку реролла
+        if (this.rerollButton && this.rerollButton.setVisible) this.rerollButton.setVisible(false);
+        if (this.rerollText && this.rerollText.setVisible) this.rerollText.setVisible(false);
+        if (this.rerollCostText && this.rerollCostText.setVisible) this.rerollCostText.setVisible(false);
+        
+        // Скрываем кнопку FIGHT
+        if (this.fightButton && this.fightButton.setVisible) this.fightButton.setVisible(false);
+    }
+
+    /**
+     * Показывает витрину и все связанные элементы
+     */
+    showShop() {
+        // Показываем карточки магазина
+        this.shopCards.forEach(cardData => {
+            if (cardData) {
+                if (cardData.card && cardData.card.setVisible) cardData.card.setVisible(true);
+                if (cardData.nameText && cardData.nameText.setVisible) cardData.nameText.setVisible(true);
+                if (cardData.costText && cardData.costText.setVisible) cardData.costText.setVisible(true);
+                if (cardData.icon && cardData.icon.setVisible) cardData.icon.setVisible(true);
+                if (cardData.border && cardData.border.setVisible) cardData.border.setVisible(true);
+                if (cardData.specialIcon && cardData.specialIcon.setVisible) cardData.specialIcon.setVisible(true);
+                if (cardData.abilityIndicator && cardData.abilityIndicator.setVisible) cardData.abilityIndicator.setVisible(true);
+            }
+        });
+        
+        // Показываем кнопку реролла
+        if (this.rerollButton && this.rerollButton.setVisible) this.rerollButton.setVisible(true);
+        if (this.rerollText && this.rerollText.setVisible) this.rerollText.setVisible(true);
+        if (this.rerollCostText && this.rerollCostText.setVisible) this.rerollCostText.setVisible(true);
+        
+        // Показываем кнопку FIGHT
+        if (this.fightButton && this.fightButton.setVisible) this.fightButton.setVisible(true);
+    }
+
+    /**
+     * Показывает область продажи вместо магазина
+     */
+    showSellArea(unit) {
+        // Скрываем витрину при показе области продажи
+        this.hideShop();
+        
+        // Рассчитываем позицию области продажи на основе размера поля
+        const { GRID_HEIGHT } = window.gameConfig;
+        const fieldHeight = GRID_HEIGHT * this.gridSystem.cellSize;
+        const shopY = fieldHeight + 300; // 300 пикселей отступ от поля
+        
+        // Удаляем все карточки магазина
+        this.shopCards.forEach(cardData => {
+            if (cardData) {
+                cardData.card.destroy();
+                if (cardData.icon) cardData.icon.destroy();
+                if (cardData.border) cardData.border.destroy();
+                if (cardData.nameText) cardData.nameText.destroy();
+                if (cardData.costText) cardData.costText.destroy();
+                if (cardData.specialIcon) cardData.specialIcon.destroy();
+                if (cardData.abilityIndicator) cardData.abilityIndicator.destroy();
+            }
+        });
+        this.shopCards = [];
+
+        // Рассчитываем цену продажи
+        // Если передан объект юнита, используем его метод, иначе берем из unitData
+        let sellPrice;
+        if (unit && unit.getSellPrice) {
+            sellPrice = unit.getSellPrice();
+        } else if (unit && unit.sellPrice !== undefined) {
+            // unit - это unitData
+            sellPrice = unit.sellPrice;
+        } else {
+            sellPrice = 0;
+        }
+        
+        // Создаем большую область продажи
+        const sellRect = this.add.rectangle(
+            this.cameras.main.centerX, shopY - 20,
+            300, 80,
+            0xFF4444, 0.8
+        );
+        sellRect.setStrokeStyle(3, 0xFF0000);
+        sellRect.setDepth(100);
+        
+        // Текст "ПРОДАТЬ"
+        const sellText = this.add.text(
+            this.cameras.main.centerX, shopY - 40,
+            'ПРОДАТЬ',
+            {
+                fontSize: '24px',
+                fill: '#FFFFFF',
+                fontStyle: 'bold'
+            }
+        ).setOrigin(0.5);
+        sellText.setDepth(101);
+        
+        // Цена продажи
+        const priceText = this.add.text(
+            this.cameras.main.centerX, shopY,
+            `${sellPrice} монет`,
+            {
+                fontSize: '18px',
+                fill: '#FFD700',
+                fontStyle: 'bold'
+            }
+        ).setOrigin(0.5);
+        priceText.setDepth(101);
+        
+        // Делаем область интерактивной для drop
+        sellRect.setInteractive();
+        
+        // Сохраняем ссылки на элементы
+        this.sellArea = {
+            rect: sellRect,
+            text: sellText,
+            priceText: priceText
+        };
+        
+        console.log(`Область продажи показана. Цена: ${sellPrice} монет`);
+    }
+
+    /**
+     * Скрывает область продажи и восстанавливает магазин
+     */
+    hideSellArea() {
+        if (this.sellArea) {
+            this.sellArea.rect.destroy();
+            this.sellArea.text.destroy();
+            this.sellArea.priceText.destroy();
+            this.sellArea = null;
+        }
+        
+        // Восстанавливаем магазин
+        const { GRID_HEIGHT } = window.gameConfig;
+        const fieldHeight = GRID_HEIGHT * this.gridSystem.cellSize;
+        const shopY = fieldHeight + 250;
+        const { startX, cardSpacing, cardWidth } = this.calculateShopPositions();
+        this.createShopCards(shopY, startX, cardSpacing, cardWidth);
+        
+        // Восстанавливаем кнопку Fight и другие UI элементы
+        this.showShop();
+        
+        console.log('Область продажи скрыта, магазин восстановлен');
     }
 
     generateShopUnits() {
@@ -2077,7 +2632,7 @@ class GameScene extends Phaser.Scene {
         console.log('Сгенерированы юниты в магазине:', this.shopUnits);
     }
 
-    createShopCards(shopY) {
+    createShopCards(shopY, startX, cardSpacing, cardWidth) {
         const { UNIT_TYPES } = window.gameConfig;
         
         // Очищаем старые карточки и все их элементы
@@ -2097,10 +2652,10 @@ class GameScene extends Phaser.Scene {
         
         this.shopUnits.forEach((type, index) => {
             const unitData = UNIT_TYPES[type];
-            const x = 60 + (index * 90);
+            const x = startX + (index * cardSpacing);
             
             // Создаем основную карточку
-            const card = this.add.rectangle(x, shopY, 80, 100, unitData.color)
+            const card = this.add.rectangle(x, shopY, cardWidth, 100, unitData.color)
                 .setInteractive({ draggable: true })
                 .on('pointerdown', () => {
                     this.selectUnit(type, index);
@@ -2176,14 +2731,14 @@ class GameScene extends Phaser.Scene {
             }
 
             // Создаем тексты
-            const nameText = this.add.text(x, shopY + 20, unitData.name, {
-                fontSize: '12px',
+            const nameText = this.add.text(x, shopY + 25, unitData.name, {
+                fontSize: '16px',
                 fill: '#ffffff',
                 fontStyle: 'bold'
             }).setOrigin(0.5);
 
-            const costText = this.add.text(x, shopY + 35, `${unitData.cost} монет`, {
-                fontSize: '10px',
+            const costText = this.add.text(x, shopY + 45, `${unitData.cost} монет`, {
+                fontSize: '14px',
                 fill: '#FFD700'
             }).setOrigin(0.5);
             
@@ -2220,14 +2775,17 @@ class GameScene extends Phaser.Scene {
         });
     }
 
-    createRerollButton(shopY) {
-        const rerollButton = this.add.rectangle(420, shopY, 60, 40, 0x666666) // Сдвинуто с 400 до 420
+    createRerollButton(shopY, startX, cardSpacing) {
+        // Позиционируем кнопку REROLL справа от карточек
+        const rerollX = startX + (this.shopUnits.length * cardSpacing) + 20;
+        
+        const rerollButton = this.add.rectangle(rerollX, shopY, 60, 40, 0x666666)
             .setInteractive()
             .on('pointerdown', () => {
                 this.rerollShop();
             });
             
-        this.add.text(420, shopY, 'REROLL\n1 монета', { // Сдвинуто с 400 до 420
+        this.add.text(rerollX, shopY, 'REROLL\n1 монета', {
             fontSize: '10px',
             fill: '#ffffff',
             fontStyle: 'bold',
@@ -2238,12 +2796,14 @@ class GameScene extends Phaser.Scene {
     }
 
     createRoundDisplay() {
-        this.roundText = this.add.text(240, 30, `РАУНД ${this.currentRound}/${this.maxRounds}`, {
-            fontSize: '20px',
+        // Центрируем текст раунда по ширине экрана
+        const screenWidth = this.cameras.main.width;
+        this.roundText = this.add.text(screenWidth / 2, 30, `РАУНД ${this.currentRound}/${this.maxRounds}`, {
+            fontSize: '24px',
             fill: '#FFD700',
             fontStyle: 'bold',
             backgroundColor: '#000000',
-            padding: { x: 10, y: 5 }
+            padding: { x: 15, y: 8 }
         }).setOrigin(0.5);
         
         // Отображение результатов предыдущих раундов
@@ -2280,7 +2840,11 @@ class GameScene extends Phaser.Scene {
             this.economySystem.spendCoins(1);
             this.updateCoinsDisplay();
             this.generateShopUnits();
-            this.createShopCards(700); // Обновлено с 600 до 700
+            const { GRID_HEIGHT } = window.gameConfig;
+            const fieldHeight = GRID_HEIGHT * this.gridSystem.cellSize;
+            const shopY = fieldHeight + 250;
+            const { startX, cardSpacing } = this.calculateShopPositions();
+            this.createShopCards(shopY, startX, cardSpacing);
             console.log('Магазин обновлен за 1 монету');
         } else {
             console.log('Недостаточно монет для реролла!');
@@ -2302,10 +2866,10 @@ class GameScene extends Phaser.Scene {
             if (cardData.abilityIndicator && cardData.abilityIndicator.destroy) cardData.abilityIndicator.destroy();
             
             this.shopCards.splice(cardIndex, 1);
+            
+            // Удаляем юнит из массива только если карточка была найдена
+            this.shopUnits.splice(cardIndex, 1);
         }
-        
-        // Удаляем юнит из массива
-        this.shopUnits.splice(cardIndex, 1);
         
         // Обновляем индексы оставшихся карточек
         this.shopCards.forEach((cardData, index) => {
@@ -2488,6 +3052,9 @@ class GameScene extends Phaser.Scene {
         this.fightButton.setFillStyle(0x666666);
         this.fightButton.disableInteractive();
         
+        // Скрываем витрину и кнопки во время боя
+        this.hideShop();
+        
         console.log('Спавним врагов...');
         this.spawnEnemies();
         
@@ -2501,11 +3068,10 @@ class GameScene extends Phaser.Scene {
     }
 
     spawnEnemies() {
-        const { GRID_WIDTH, ENEMY_AREA_HEIGHT, UNIT_TYPES, STARTING_COINS } = window.gameConfig;
+        const { GRID_WIDTH, ENEMY_AREA_HEIGHT, UNIT_TYPES, STARTING_COINS, ROUND_COINS } = window.gameConfig;
         
         // Враг получает такой же бюджет, как у игрока в текущем раунде
-        // В раунде 1: 10 монет, в остальных раундах: 5 монет
-        let enemyBudget = this.currentRound === 1 ? STARTING_COINS : 5;
+        let enemyBudget = this.currentRound === 1 ? STARTING_COINS : ROUND_COINS;
         
         console.log('=== СПАВН ВРАГОВ ===');
         console.log('Бюджет врага:', enemyBudget, 'монет (как у игрока в раунде', this.currentRound, ')');
@@ -2622,6 +3188,9 @@ class GameScene extends Phaser.Scene {
         this.fightButton.setFillStyle(0xE24A4A);
         this.fightButton.setInteractive();
         
+        // Показываем витрину и кнопки после окончания боя
+        this.showShop();
+        
         // Сохраняем результат раунда
         this.roundResults.push(victory);
         console.log(`Раунд ${this.currentRound} завершен. Результат: ${victory ? 'Победа' : 'Поражение'}`);
@@ -2673,19 +3242,24 @@ class GameScene extends Phaser.Scene {
             this.roundText.setText(`РАУНД ${this.currentRound}/${this.maxRounds}`);
         }
         
-        // Даем монеты за новый раунд: только фиксированная сумма (убрали бонус за убийства для баланса)
-        const baseReward = 5; // Фиксированное количество монет за раунд
+        // Даем монеты за новый раунд
+        const { STARTING_COINS, ROUND_COINS } = window.gameConfig;
+        const roundReward = this.currentRound === 1 ? STARTING_COINS : ROUND_COINS;
         
-        this.economySystem.addCoins(baseReward);
+        this.economySystem.addCoins(roundReward);
         console.log(`=== НАЧАЛО РАУНДА ${this.currentRound} ===`);
-        console.log(`Базовая награда: ${baseReward} монет`);
+        console.log(`Награда за раунд: ${roundReward} монет`);
         console.log(`Текущий баланс: ${this.economySystem.getCoins()} монет`);
         
         this.updateCoinsDisplay();
         
         // Перегенерируем магазин для нового раунда
         this.generateShopUnits();
-        this.createShopCards(750); // Адаптировано для поля 9x12 (было 650)
+        const { GRID_HEIGHT } = window.gameConfig;
+        const fieldHeight = GRID_HEIGHT * this.gridSystem.cellSize;
+        const shopY = fieldHeight + 250;
+        const { startX, cardSpacing, cardWidth } = this.calculateShopPositions();
+        this.createShopCards(shopY, startX, cardSpacing, cardWidth);
         console.log('Магазин перегенерирован для нового раунда');
         
         // Обновляем отображение результатов
@@ -2745,11 +3319,21 @@ class GameScene extends Phaser.Scene {
                 }
                 
                 // Добавляем drag-and-drop обработчики заново
+                if (unit.sprite.type === 'Container') {
+                    unit.sprite.setSize(unit.sprite.width || 100, unit.sprite.height || 100);
+                }
                 unit.sprite.setInteractive({ draggable: true })
                     .on('dragstart', (pointer) => {
                         this.onUnitDragStart(unit, pointer);
                     })
                     .on('drag', (pointer, dragX, dragY) => {
+                        // Не двигаем фактический спрайт юнита, только призрак
+                        if (unit.sprite && unit.sprite.setPosition) {
+                            unit.sprite.setPosition(
+                                this.gridSystem.gridOffsetX + (unit.gridX * this.gridSystem.cellSize) + this.gridSystem.cellSize / 2,
+                                this.gridSystem.gridOffsetY + (unit.gridY * this.gridSystem.cellSize) + this.gridSystem.cellSize / 2
+                            );
+                        }
                         this.onUnitDrag(pointer);
                     })
                     .on('dragend', (pointer, dragX, dragY) => {
@@ -2765,11 +3349,21 @@ class GameScene extends Phaser.Scene {
                 
                 // Убеждаемся, что drag-and-drop обработчики есть
                 if (!unit.sprite.input || !unit.sprite.input.draggable) {
+                    if (unit.sprite.type === 'Container') {
+                        unit.sprite.setSize(unit.sprite.width || 100, unit.sprite.height || 100);
+                    }
                     unit.sprite.setInteractive({ draggable: true })
                         .on('dragstart', (pointer) => {
                             this.onUnitDragStart(unit, pointer);
                         })
                         .on('drag', (pointer, dragX, dragY) => {
+                            // Не двигаем фактический спрайт юнита, только призрак
+                            if (unit.sprite && unit.sprite.setPosition) {
+                                unit.sprite.setPosition(
+                                    this.gridSystem.gridOffsetX + (unit.gridX * this.gridSystem.cellSize) + this.gridSystem.cellSize / 2,
+                                    this.gridSystem.gridOffsetY + (unit.gridY * this.gridSystem.cellSize) + this.gridSystem.cellSize / 2
+                                );
+                            }
                             this.onUnitDrag(pointer);
                         })
                         .on('dragend', (pointer, dragX, dragY) => {
@@ -2878,22 +3472,26 @@ class GameScene extends Phaser.Scene {
             this.battleSystem.isActive = false;
         }
         
-        // Создаем затемнение
-        const overlay = this.add.rectangle(240, 450, 480, 900, 0x000000, 0.7);
+        // Создаем затемнение на весь экран (больше чем размеры игры)
+        const overlay = this.add.rectangle(0, 0, this.scale.gameSize.width * 2, this.scale.gameSize.height * 2, 0x000000, 0.7);
+        overlay.setOrigin(0, 0);
+        overlay.setScrollFactor(0); // Фиксированное положение относительно камеры
         
         // Итоговый результат
-        this.add.text(240, 350, result, {
+        const resultText = this.add.text(this.scale.width / 2, this.scale.height / 2 - 50, result, {
             fontSize: '32px',
             fill: result === 'ПОБЕДА!' ? '#00FF00' : '#FF0000',
             fontStyle: 'bold'
         }).setOrigin(0.5);
+        resultText.setScrollFactor(0);
         
         // Финальный счет (Best of 5)
-        this.add.text(240, 400, `Финальный счет: ${playerWins}-${enemyWins}`, {
+        const scoreText = this.add.text(this.scale.width / 2, this.scale.height / 2, `Финальный счет: ${playerWins}-${enemyWins}`, {
             fontSize: '20px',
             fill: '#FFFFFF',
             fontStyle: 'bold'
         }).setOrigin(0.5);
+        scoreText.setScrollFactor(0);
         
         // Детали раундов
         let roundsText = '';
@@ -2902,24 +3500,27 @@ class GameScene extends Phaser.Scene {
             if (index < this.roundResults.length - 1) roundsText += '-';
         });
         
-        this.add.text(240, 430, `Раунды: ${roundsText}`, {
+        const roundsTextElement = this.add.text(this.scale.width / 2, this.scale.height / 2 + 30, `Раунды: ${roundsText}`, {
             fontSize: '14px',
             fill: '#CCCCCC'
         }).setOrigin(0.5);
+        roundsTextElement.setScrollFactor(0);
         
         // Кнопка новой игры
-        const newGameButton = this.add.rectangle(240, 500, 200, 50, 0x4A90E2)
+        const newGameButton = this.add.rectangle(this.scale.width / 2, this.scale.height / 2 + 100, 200, 50, 0x4A90E2)
             .setInteractive()
             .on('pointerdown', () => {
                 console.log('Перезапуск игры...');
                 this.scene.restart();
             });
+        newGameButton.setScrollFactor(0);
             
-        this.add.text(240, 500, 'НОВАЯ ИГРА', {
+        const buttonText = this.add.text(this.scale.width / 2, this.scale.height / 2 + 100, 'НОВАЯ ИГРА', {
             fontSize: '16px',
             fill: '#FFFFFF',
             fontStyle: 'bold'
         }).setOrigin(0.5);
+        buttonText.setScrollFactor(0);
     }
 
     cleanupDeadUnits() {
@@ -2948,9 +3549,13 @@ class GameScene extends Phaser.Scene {
         if (!this.economySystem.canAfford(unitData.cost)) return;
         
         this.isDragging = true;
+        this.isDraggingFromField = false; // Сбрасываем флаг - перетаскивание из магазина
         this.selectedUnitType = unitType;
         this.selectedUnitData = unitData;
         this.selectedCardIndex = cardIndex;
+        
+        // НЕ показываем область продажи при перетаскивании из магазина
+        // Область продажи только для уже размещенных юнитов
         
         // Создаем призрачную копию юнита
         this.createDragGhost(unitType, pointer.x, pointer.y);
@@ -3019,9 +3624,15 @@ class GameScene extends Phaser.Scene {
             gridX, gridY, size, this.selectedUnitType, false
         );
         
-        // Подсвечиваем клетки
-        for (let y = gridY; y < gridY + size.height; y++) {
-            for (let x = gridX; x < gridX + size.width; x++) {
+        // Проверяем, есть ли у юнита L-образная форма
+        const unitData = window.gameConfig.UNIT_TYPES[this.selectedUnitType];
+        const occupiedCells = unitData?.occupiedCells;
+        
+        if (occupiedCells) {
+            // L-образная форма - подсвечиваем только занятые клетки
+            occupiedCells.forEach(cell => {
+                const x = gridX + cell.x;
+                const y = gridY + cell.y;
                 const cellX = this.gridSystem.gridOffsetX + (x * this.gridSystem.cellSize) + this.gridSystem.cellSize / 2;
                 const cellY = this.gridSystem.gridOffsetY + (y * this.gridSystem.cellSize) + this.gridSystem.cellSize / 2;
                 
@@ -3034,6 +3645,24 @@ class GameScene extends Phaser.Scene {
                 );
                 highlight.setDepth(500);
                 this.highlightedCells.push(highlight);
+            });
+        } else {
+            // Стандартная прямоугольная форма
+            for (let y = gridY; y < gridY + size.height; y++) {
+                for (let x = gridX; x < gridX + size.width; x++) {
+                    const cellX = this.gridSystem.gridOffsetX + (x * this.gridSystem.cellSize) + this.gridSystem.cellSize / 2;
+                    const cellY = this.gridSystem.gridOffsetY + (y * this.gridSystem.cellSize) + this.gridSystem.cellSize / 2;
+                    
+                    const color = placementResult.canPlace ? 0x00FF00 : 0xFF0000;
+                    const highlight = this.add.rectangle(
+                        cellX, cellY,
+                        this.gridSystem.cellSize,
+                        this.gridSystem.cellSize,
+                        color, 0.3
+                    );
+                    highlight.setDepth(500);
+                    this.highlightedCells.push(highlight);
+                }
             }
         }
         
@@ -3123,6 +3752,12 @@ class GameScene extends Phaser.Scene {
         this.isDragging = true;
         this.draggedUnit = unit;
         
+        // Показываем область продажи только если юнит с поля
+        // Если юнит из магазина, область продажи не показываем
+        if (this.isDraggingFromField) {
+            this.showSellArea(unit);
+        }
+        
         // Создаем призрачную копию юнита
         this.createUnitDragGhost(unit, pointer.x, pointer.y);
         
@@ -3174,6 +3809,28 @@ class GameScene extends Phaser.Scene {
             elem.setPosition(pointer.x, pointer.y);
         });
         
+        // Проверяем, находится ли курсор над областью продажи
+        if (this.sellArea && this.sellArea.rect) {
+            const sellRect = this.sellArea.rect;
+            const bounds = sellRect.getBounds();
+            const inside =
+                pointer.x >= bounds.x &&
+                pointer.x <= bounds.x + bounds.width &&
+                pointer.y >= bounds.y &&
+                pointer.y <= bounds.y + bounds.height;
+            
+            if (inside) {
+                // Подсвечиваем область продажи
+                if (sellRect.fillColor !== 0x00FF00) {
+                    sellRect.setFillStyle(0x00FF00, 0.8);
+                    console.log('Курсор над областью продажи');
+                }
+            } else if (sellRect.fillColor !== 0xFF4444) {
+                // Убираем подсветку
+                sellRect.setFillStyle(0xFF4444, 0.8);
+            }
+        }
+        
         // Получаем позицию на сетке
         console.log('onUnitDrag координаты:', pointer.x, pointer.y);
         const gridPos = this.gridSystem.getGridPosition(pointer.x, pointer.y);
@@ -3207,9 +3864,15 @@ class GameScene extends Phaser.Scene {
             gridX, gridY, size, this.draggedUnit.unitType, false
         );
         
-        // Подсвечиваем клетки
-        for (let y = gridY; y < gridY + size.height; y++) {
-            for (let x = gridX; x < gridX + size.width; x++) {
+        // Проверяем, есть ли у юнита L-образная форма
+        const unitData = window.gameConfig.UNIT_TYPES[this.draggedUnit.unitType];
+        const occupiedCells = unitData?.occupiedCells;
+        
+        if (occupiedCells) {
+            // L-образная форма - подсвечиваем только занятые клетки
+            occupiedCells.forEach(cell => {
+                const x = gridX + cell.x;
+                const y = gridY + cell.y;
                 const cellX = this.gridSystem.gridOffsetX + (x * this.gridSystem.cellSize) + this.gridSystem.cellSize / 2;
                 const cellY = this.gridSystem.gridOffsetY + (y * this.gridSystem.cellSize) + this.gridSystem.cellSize / 2;
                 
@@ -3222,6 +3885,24 @@ class GameScene extends Phaser.Scene {
                 );
                 highlight.setDepth(500);
                 this.highlightedCells.push(highlight);
+            });
+        } else {
+            // Стандартная прямоугольная форма
+            for (let y = gridY; y < gridY + size.height; y++) {
+                for (let x = gridX; x < gridX + size.width; x++) {
+                    const cellX = this.gridSystem.gridOffsetX + (x * this.gridSystem.cellSize) + this.gridSystem.cellSize / 2;
+                    const cellY = this.gridSystem.gridOffsetY + (y * this.gridSystem.cellSize) + this.gridSystem.cellSize / 2;
+                    
+                    const color = placementResult.canPlace ? 0x00FF00 : 0xFF0000;
+                    const highlight = this.add.rectangle(
+                        cellX, cellY,
+                        this.gridSystem.cellSize,
+                        this.gridSystem.cellSize,
+                        color, 0.3
+                    );
+                    highlight.setDepth(500);
+                    this.highlightedCells.push(highlight);
+                }
             }
         }
         
@@ -3266,8 +3947,44 @@ class GameScene extends Phaser.Scene {
         if (isNaN(worldX) || isNaN(worldY) || worldX === undefined || worldY === undefined) {
             console.log('Невалидные координаты pointer, отменяем перетаскивание');
             this.isDragging = false;
+            this.isDraggingFromField = false;
             this.draggedUnit = null;
             return;
+        }
+        
+        // Проверяем, находится ли курсор над областью продажи
+        if (this.sellArea && this.sellArea.rect) {
+            const sellRect = this.sellArea.rect;
+            const bounds = sellRect.getBounds();
+            const inside =
+                worldX >= bounds.x &&
+                worldX <= bounds.x + bounds.width &&
+                worldY >= bounds.y &&
+                worldY <= bounds.y + bounds.height;
+            
+            if (inside) {
+                // ПРОДАЖА ЮНИТА
+                console.log('Продаем юнит');
+                const sellPrice = this.draggedUnit.getSellPrice();
+                
+                // Добавляем монеты
+                this.economySystem.addCoins(sellPrice);
+                this.updateCoinsDisplay();
+                
+                // Удаляем юнит с поля
+                this.draggedUnit.die();
+                this.gridSystem.removeUnit(this.draggedUnit);
+                
+                console.log(`Юнит продан за ${sellPrice} монет`);
+                
+                // Скрываем область продажи
+                this.hideSellArea();
+                
+                // Сброс состояния
+                this.isDragging = false;
+                this.draggedUnit = null;
+                return;
+            }
         }
         
         const gridPos = this.gridSystem.getGridPosition(worldX, worldY);
@@ -3276,7 +3993,9 @@ class GameScene extends Phaser.Scene {
         // Проверяем валидность координат
         if (isNaN(gridPos.x) || isNaN(gridPos.y)) {
             console.log('Невалидные координаты, отменяем перетаскивание');
+            this.hideSellArea(); // Скрываем область продажи
             this.isDragging = false;
+            this.isDraggingFromField = false;
             this.draggedUnit = null;
             return;
         }
@@ -3296,6 +4015,7 @@ class GameScene extends Phaser.Scene {
                 // Проверяем, что не мерджим юнит сам с собой
                 if (placementResult.existingUnit === this.draggedUnit) {
                     console.log('Нельзя мерджить юнит сам с собой');
+                    this.hideSellArea(); // Скрываем область продажи
                     this.isDragging = false;
                     this.draggedUnit = null;
                     return;
@@ -3316,17 +4036,30 @@ class GameScene extends Phaser.Scene {
                 // ПЕРЕМЕЩЕНИЕ
                 console.log('Выполняем перемещение');
                 this.gridSystem.removeUnit(this.draggedUnit);
-                this.gridSystem.placeUnit(gridPos.x, gridPos.y, this.draggedUnit);
+                
+                // Обновляем координаты ПЕРЕД размещением для L-образных юнитов
                 this.draggedUnit.gridX = gridPos.x;
                 this.draggedUnit.gridY = gridPos.y;
+                
+                this.gridSystem.placeUnit(gridPos.x, gridPos.y, this.draggedUnit);
                 this.draggedUnit.updateMergeStars();
+                
+                // Обновляем позицию эффектов для L-образных юнитов
+                this.draggedUnit.setPosition(
+                    this.gridSystem.gridOffsetX + (gridPos.x * this.gridSystem.cellSize) + this.gridSystem.cellSize / 2,
+                    this.gridSystem.gridOffsetY + (gridPos.y * this.gridSystem.cellSize) + this.gridSystem.cellSize / 2
+                );
             }
         } else {
             console.log('Нельзя разместить, отменяем перетаскивание');
         }
         
+        // Скрываем область продажи
+        this.hideSellArea();
+        
         // Сброс состояния
         this.isDragging = false;
+        this.isDraggingFromField = false;
         this.draggedUnit = null;
     }
 }
@@ -3338,31 +4071,35 @@ class MenuScene extends Phaser.Scene {
     }
 
     create() {
-        this.add.text(240, 200, 'БАТТЛЕР РПГ', {
-            fontSize: '32px',
+        // Адаптивное позиционирование для стартового экрана
+        const centerX = this.cameras.main.centerX;
+        const centerY = this.cameras.main.centerY;
+        
+        this.add.text(centerX, centerY - 100, 'БАТТЛЕР РПГ', {
+            fontSize: '48px',
             fill: '#ffffff',
             fontStyle: 'bold'
         }).setOrigin(0.5);
 
-        this.add.text(240, 250, 'Прототип', {
-            fontSize: '18px',
+        this.add.text(centerX, centerY - 50, 'Прототип', {
+            fontSize: '24px',
             fill: '#cccccc'
         }).setOrigin(0.5);
 
-        const startButton = this.add.rectangle(240, 400, 200, 60, 0x4A90E2)
+        const startButton = this.add.rectangle(centerX, centerY + 20, 250, 60, 0x4A90E2)
             .setInteractive()
             .on('pointerdown', () => {
                 this.scene.start('GameScene');
             });
 
-        this.add.text(240, 400, 'НАЧАТЬ ИГРУ', {
+        this.add.text(centerX, centerY + 20, 'НАЧАТЬ ИГРУ', {
             fontSize: '20px',
             fill: '#ffffff',
             fontStyle: 'bold'
         }).setOrigin(0.5);
 
-        this.add.text(240, 500, 'Размещайте юнитов на поле\nи сражайтесь с врагами!', {
-            fontSize: '14px',
+        this.add.text(centerX, centerY + 100, 'Размещайте юнитов на поле\nи сражайтесь с врагами!', {
+            fontSize: '16px',
             fill: '#aaaaaa',
             align: 'center'
         }).setOrigin(0.5);
@@ -3380,20 +4117,20 @@ class MenuScene extends Phaser.Scene {
 // Конфигурация Phaser
 const config = {
     type: Phaser.AUTO,
-    width: 480,
-    height: 1000, // Увеличено для витрины y=750 (было 900)
+    width: 800,  // Увеличена ширина для лучшего использования экрана
+    height: 1400, // Увеличена высота для витрины
     parent: 'game-container',
     backgroundColor: '#16213e',
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
         min: {
-            width: 320,
-            height: 568
+            width: 400,
+            height: 600
         },
         max: {
-            width: 480,
-            height: 800
+            width: 1200,
+            height: 1800
         }
     },
     physics: {

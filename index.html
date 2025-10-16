@@ -49,23 +49,59 @@
         <div class="loading">Загрузка игры...</div>
     </div>
     
-    <!-- Пробуем несколько CDN для надежности -->
-    <script src="https://unpkg.com/phaser@3.55.2/dist/phaser.min.js" 
-            onerror="this.onerror=null; this.src='https://cdnjs.cloudflare.com/ajax/libs/phaser/3.55.2/phaser.min.js'"></script>
+    <!-- Загружаем Phaser с fallback -->
     <script>
-        // Проверяем загрузку Phaser перед запуском игры
-        window.addEventListener('DOMContentLoaded', function() {
-            setTimeout(function() {
-                if (typeof Phaser === 'undefined') {
-                    console.error('Phaser не загрузился! Попробуйте обновить страницу.');
-                    document.querySelector('.loading').textContent = 'Ошибка загрузки библиотеки игры. Обновите страницу (F5)';
-                    document.querySelector('.loading').style.color = '#ff6b6b';
-                } else {
+        // Функция для загрузки Phaser с fallback
+        function loadPhaser() {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://unpkg.com/phaser@3.55.2/dist/phaser.min.js';
+                script.onload = () => {
                     console.log('Phaser загружен успешно!', Phaser.VERSION);
-                }
-            }, 1000);
+                    resolve();
+                };
+                script.onerror = () => {
+                    console.log('Первый CDN не работает, пробуем второй...');
+                    const script2 = document.createElement('script');
+                    script2.src = 'https://cdnjs.cloudflare.com/ajax/libs/phaser/3.55.2/phaser.min.js';
+                    script2.onload = () => {
+                        console.log('Phaser загружен с fallback CDN!', Phaser.VERSION);
+                        resolve();
+                    };
+                    script2.onerror = () => {
+                        console.error('Оба CDN не работают!');
+                        document.querySelector('.loading').textContent = 'Ошибка загрузки библиотеки игры. Проверьте интернет-соединение.';
+                        document.querySelector('.loading').style.color = '#ff6b6b';
+                        reject(new Error('Не удалось загрузить Phaser'));
+                    };
+                    document.head.appendChild(script2);
+                };
+                document.head.appendChild(script);
+            });
+        }
+        
+        // Загружаем Phaser и затем подключаем игру
+        window.addEventListener('DOMContentLoaded', function() {
+            loadPhaser().then(() => {
+                console.log('Phaser загружен. Загружаем игру...');
+                const gameScript = document.createElement('script');
+                gameScript.src = 'src/game.js';
+                gameScript.onload = () => {
+                    console.log('Игра загружена и запущена');
+                };
+                gameScript.onerror = () => {
+                    console.error('Ошибка загрузки файла игры src/game.js');
+                    const loading = document.querySelector('.loading');
+                    if (loading) {
+                        loading.textContent = 'Ошибка загрузки игры. Проверьте консоль.';
+                        loading.style.color = '#ff6b6b';
+                    }
+                };
+                document.head.appendChild(gameScript);
+            }).catch((error) => {
+                console.error('Ошибка загрузки Phaser:', error);
+            });
         });
     </script>
-    <script src="src/game.js"></script>
 </body>
 </html>

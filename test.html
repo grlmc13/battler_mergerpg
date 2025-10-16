@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест игры</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        #game-container {
+            width: 100%;
+            max-width: 800px;
+            height: 600px;
+            border: 2px solid #333;
+            border-radius: 10px;
+            background: #16213e;
+            margin: 0 auto;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            background: #333;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Тест загрузки игры</h1>
+    <div id="status" class="status">Проверяем загрузку...</div>
+    <div id="game-container"></div>
+    
+    <script>
+        function updateStatus(message, isError = false) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.style.color = isError ? '#ff6b6b' : '#4CAF50';
+        }
+        
+        // Проверяем загрузку Phaser
+        function checkPhaser() {
+            if (typeof Phaser !== 'undefined') {
+                updateStatus(`Phaser загружен успешно! Версия: ${Phaser.VERSION}`);
+                return true;
+            }
+            return false;
+        }
+        
+        // Загружаем Phaser
+        function loadPhaser() {
+            return new Promise((resolve, reject) => {
+                updateStatus('Загружаем Phaser...');
+                
+                const script = document.createElement('script');
+                script.src = 'https://unpkg.com/phaser@3.55.2/dist/phaser.min.js';
+                script.onload = () => {
+                    if (checkPhaser()) {
+                        resolve();
+                    } else {
+                        reject(new Error('Phaser не загрузился'));
+                    }
+                };
+                script.onerror = () => {
+                    updateStatus('Ошибка загрузки Phaser с первого CDN, пробуем второй...', true);
+                    
+                    const script2 = document.createElement('script');
+                    script2.src = 'https://cdnjs.cloudflare.com/ajax/libs/phaser/3.55.2/phaser.min.js';
+                    script2.onload = () => {
+                        if (checkPhaser()) {
+                            resolve();
+                        } else {
+                            reject(new Error('Phaser не загрузился с fallback CDN'));
+                        }
+                    };
+                    script2.onerror = () => {
+                        updateStatus('Ошибка: Не удалось загрузить Phaser с обоих CDN', true);
+                        reject(new Error('Все CDN недоступны'));
+                    };
+                    document.head.appendChild(script2);
+                };
+                document.head.appendChild(script);
+            });
+        }
+        
+        // Запускаем тест
+        window.addEventListener('DOMContentLoaded', function() {
+            updateStatus('Начинаем загрузку...');
+            
+            loadPhaser().then(() => {
+                updateStatus('Phaser загружен! Теперь загружаем игру...');
+                
+                // Загружаем игру
+                const gameScript = document.createElement('script');
+                gameScript.src = 'src/game.js';
+                gameScript.onload = () => {
+                    updateStatus('Игра загружена успешно!');
+                };
+                gameScript.onerror = () => {
+                    updateStatus('Ошибка загрузки файла игры (src/game.js)', true);
+                };
+                document.head.appendChild(gameScript);
+                
+            }).catch((error) => {
+                updateStatus(`Ошибка: ${error.message}`, true);
+            });
+        });
+    </script>
+</body>
+</html>
