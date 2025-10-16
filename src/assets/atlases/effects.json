@@ -1,0 +1,58 @@
+{
+  "meta": {
+    "app": "TexturePacker",
+    "version": "1.0",
+    "image": "effects.png",
+    "format": "RGBA8888",
+    "size": {"w": 512, "h": 512},
+    "scale": "1"
+  },
+  "frames": {
+    "magic_bolt_1": {
+      "frame": {"x": 0, "y": 0, "w": 32, "h": 32},
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {"x": 0, "y": 0, "w": 32, "h": 32},
+      "sourceSize": {"w": 32, "h": 32}
+    },
+    "magic_bolt_2": {
+      "frame": {"x": 32, "y": 0, "w": 32, "h": 32},
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {"x": 0, "y": 0, "w": 32, "h": 32},
+      "sourceSize": {"w": 32, "h": 32}
+    },
+    "magic_bolt_3": {
+      "frame": {"x": 64, "y": 0, "w": 32, "h": 32},
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {"x": 0, "y": 0, "w": 32, "h": 32},
+      "sourceSize": {"w": 32, "h": 32}
+    },
+    "heal_1": {
+      "frame": {"x": 0, "y": 32, "w": 32, "h": 32},
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {"x": 0, "y": 0, "w": 32, "h": 32},
+      "sourceSize": {"w": 32, "h": 32}
+    },
+    "heal_2": {
+      "frame": {"x": 32, "y": 32, "w": 32, "h": 32},
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {"x": 0, "y": 0, "w": 32, "h": 32},
+      "sourceSize": {"w": 32, "h": 32}
+    },
+    "heal_3": {
+      "frame": {"x": 64, "y": 32, "w": 32, "h": 32},
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {"x": 0, "y": 0, "w": 32, "h": 32},
+      "sourceSize": {"w": 32, "h": 32}
+    }
+  },
+  "animations": {
+    "magic_bolt_anim": ["magic_bolt_1", "magic_bolt_2", "magic_bolt_3"],
+    "heal_effect_anim": ["heal_1", "heal_2", "heal_3"]
+  }
+}
