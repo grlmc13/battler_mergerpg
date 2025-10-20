@@ -25,10 +25,10 @@
 window.gameConfig = {
     // Настройки игрового поля
     GRID_WIDTH: 8,              // Ширина сетки в клетках
-    GRID_HEIGHT: 12,             // Высота сетки в клеток (6 для игрока + 6 для врага)
-    CELL_SIZE: 80,              // 0 = автоматический расчет, или задайте конкретное значение
-    PLAYER_AREA_HEIGHT: 6,      // Количество рядов для игрока
-    ENEMY_AREA_HEIGHT: 6,       // Количество рядов для врага
+    GRID_HEIGHT: 6,             // Высота сетки в клетках
+    CELL_SIZE: 50,              // Размер клетки в пикселях
+    PLAYER_AREA_HEIGHT: 3,      // Количество рядов для игрока
+    ENEMY_AREA_HEIGHT: 3,       // Количество рядов для врага
     VERSION: '1.2.2',           // Версия конфигурации для отладки
     
     // Экономика
@@ -40,7 +40,7 @@ window.gameConfig = {
         ARCHER: {
             name: 'Лучник',
             size: { width: 1, height: 1 },
-            cost: 2,
+            cost: 0,
             hp: 30,
             damage: 8,
             attackSpeed: 0.5,          // Очень быстрая атака
@@ -52,7 +52,7 @@ window.gameConfig = {
         WARRIOR: {
             name: 'Мечник',
             size: { width: 1, height: 2 },
-            cost: 3,
+            cost: 0,
             hp: 50,
             damage: 12,
             attackSpeed: 1.0,
@@ -66,7 +66,7 @@ window.gameConfig = {
         BARBARIAN: {
             name: 'Варвар',
             size: { width: 2, height: 1 },
-            cost: 4,
+            cost: 0,
             hp: 60,
             damage: 15,
             attackSpeed: 1.5,
@@ -79,7 +79,7 @@ window.gameConfig = {
         HEALER: {
             name: 'Лекарь',
             size: { width: 1, height: 1 },
-            cost: 3,
+            cost: 0,
             hp: 25,
             damage: 3,
             attackSpeed: 2.0, // Возвращаем исходное значение
@@ -93,7 +93,7 @@ window.gameConfig = {
         MAGE: {
             name: 'Маг',
             size: { width: 2, height: 2 },
-            cost: 5,
+            cost: 0,
             hp: 40,
             damage: 8, // Меньше урона, но бьет по 3 целям
             attackSpeed: 2.5, // Медленнее атакует
@@ -105,8 +105,8 @@ window.gameConfig = {
         },
         TANK: {
             name: 'Танк',
-            size: { width: 1, height: 2 },
-            cost: 5,
+            size: { width: 3, height: 2 },
+            cost: 0,
             hp: 80,
             damage: 10,
             attackSpeed: 2.0,
@@ -120,7 +120,7 @@ window.gameConfig = {
         ASSASSIN: {
             name: 'Ассасин',
             size: { width: 1, height: 1 },
-            cost: 3,
+            cost: 0,
             hp: 20,
             damage: 20,
             attackSpeed: 1.2,
@@ -133,8 +133,13 @@ window.gameConfig = {
         },
         DRUID: {
             name: 'Друид',
-            size: { width: 2, height: 1 },
-            cost: 4,
+            size: { width: 2, height: 2 },
+            occupiedCells: [
+                { x: 1, y: 0 }, // Top-right
+                { x: 0, y: 1 }, // Bottom-left
+                { x: 1, y: 1 }  // Bottom-right
+            ],
+            cost: 0,
             hp: 45,
             damage: 6,
             attackSpeed: 1.8,
@@ -153,14 +158,13 @@ window.gameConfig = {
                 { x: 0, y: 1 }, // Bottom-left  
                 { x: 1, y: 1 }  // Bottom-right (missing top-right)
             ],
-            cost: 6,
+            cost: 0,
             hp: 35,
             damage: 12,
             attackSpeed: 3.0,
             range: 10,
             hasCurse: true,
-            curseDamage: 2,
-            curseRange: 2,
+            curseDebuff: 0.5,
             sellPrice: 6,              // Базовая цена продажи
             sellPricePerStar: 6,       // Дополнительная цена за каждую звезду мерджа
             color: 0x4B0082
@@ -855,8 +859,14 @@ class Unit {
                 }
             });
         } else if (this.sprite) {
-            // Standard positioning
-            this.sprite.setPosition(x, y);
+            // Standard positioning - пересчитываем позицию для правильного центрирования
+            const spriteX = this.scene.gridSystem.gridOffsetX + 
+                (this.gridX * this.scene.gridSystem.cellSize) + 
+                (this.size.width * this.scene.gridSystem.cellSize / 2);
+            const spriteY = this.scene.gridSystem.gridOffsetY + 
+                (this.gridY * this.scene.gridSystem.cellSize) + 
+                (this.size.height * this.scene.gridSystem.cellSize / 2);
+            this.sprite.setPosition(spriteX, spriteY);
         }
         
         // Position HP bar at center of bounding box
@@ -1450,17 +1460,28 @@ class Healer extends Unit {
     }
 
     castAreaHeal() {
-        console.log('Лекарь кастует лечение по области в радиусе', this.healRange);
+        console.log('Лекарь кастует лечение крестом');
         
-        // Ищем всех союзников в радиусе лечения
         const allies = this.isEnemy ? this.scene.enemyUnits : this.scene.playerUnits;
-        const nearbyAllies = allies.filter(ally => 
-            ally !== this && 
-            !ally.isDead && 
-            this.getGridDistanceTo(ally) <= this.healRange
-        );
         
-        console.log(`Найдено союзников в радиусе: ${nearbyAllies.length}`);
+        // 4 соседние клетки крестом
+        const adjacentPositions = [
+            { x: this.gridX, y: this.gridY - 1 },     // Вверх
+            { x: this.gridX, y: this.gridY + 1 },     // Вниз
+            { x: this.gridX - 1, y: this.gridY },     // Влево
+            { x: this.gridX + 1, y: this.gridY }      // Вправо
+        ];
+        
+        const nearbyAllies = allies.filter(ally => {
+            if (ally === this || !ally.isAlive() || ally.hp >= ally.maxHp) return false;
+            
+            // Проверяем, находится ли союзник в одной из 4 соседних клеток
+            return adjacentPositions.some(pos => 
+                ally.gridX === pos.x && ally.gridY === pos.y
+            );
+        });
+        
+        console.log(`Найдено союзников в кресте: ${nearbyAllies.length}`);
         
         // Лечим всех найденных союзников
         nearbyAllies.forEach(ally => {
@@ -1475,7 +1496,7 @@ class Healer extends Unit {
             }
         });
         
-        // Создаем визуальный эффект лечения по области только если есть союзники
+        // Создаем визуальный эффект лечения крестом только если есть союзники
         if (nearbyAllies.length > 0) {
             this.createAreaHealEffect();
         }
@@ -1776,7 +1797,7 @@ class Mage extends Unit {
 // Танк
 class Tank extends Unit {
     constructor(scene, gridX, gridY, isEnemy = false) {
-        super(scene, gridX, gridY, isEnemy, { width: 1, height: 2 }, 0xC0C0C0);
+        super(scene, gridX, gridY, isEnemy, { width: 2, height: 2 }, 0xC0C0C0);
         
         this.unitType = 'TANK';
         this.maxHp = 80;
@@ -1932,7 +1953,7 @@ class Assassin extends Unit {
 // Друид
 class Druid extends Unit {
     constructor(scene, gridX, gridY, isEnemy = false) {
-        super(scene, gridX, gridY, isEnemy, { width: 2, height: 1 }, 0x8B4513);
+        super(scene, gridX, gridY, isEnemy, { width: 2, height: 2 }, 0x8B4513);
         
         this.unitType = 'DRUID';
         this.maxHp = 45;
@@ -1942,6 +1963,13 @@ class Druid extends Unit {
         this.baseAttackSpeed = 1.8;
         this.range = 10;
         this.thornsDamage = 5;
+        
+        // Определяем занятые клетки для _J формы
+        this.occupiedCells = [
+            { x: 1, y: 0 }, // Top-right
+            { x: 0, y: 1 }, // Bottom-left
+            { x: 1, y: 1 }  // Bottom-right
+        ];
         
         this.baseHp = this.maxHp;
         this.baseDamage = this.damage;
@@ -2014,93 +2042,75 @@ class Witch extends Unit {
         this.attackSpeed = 3.0;
         this.baseAttackSpeed = 3.0;
         this.range = 10;
-        this.curseDamage = 2;
-        this.curseRange = 2;
-        this.lastCurseTick = 0;
+        this.curseDebuff = 0.5;
+        this.cursedEnemies = new Set();
         
         this.baseHp = this.maxHp;
         this.baseDamage = this.damage;
         
         this.updateVisuals();
-        this.createCurseEffect();
     }
     
-    createCurseEffect() {
-        // Визуальный эффект проклятия - фиолетовая аура
-        if (this.curseGlow) {
-            this.curseGlow.destroy();
+    attack(target) {
+        if (!this.canAttack() || this.isDead) return false;
+        
+        this.lastAttackTime = this.scene.time.now;
+        target.takeDamage(this.damage);
+        this.createAttackEffect(target);
+        this.applyCurseDebuff(target);
+        
+        return true;
+    }
+    
+    applyCurseDebuff(target) {
+        if (!target || target.isDead) return;
+        
+        if (!target.originalDamage) {
+            target.originalDamage = target.damage;
         }
         
-        const centerX = this.sprite.x;
-        const centerY = this.sprite.y;
-        const radius = this.curseRange * this.scene.gridSystem.cellSize;
+        target.damage = target.originalDamage * this.curseDebuff;
+        target.isCursed = true;
+        this.cursedEnemies.add(target);
+        this.createCurseDebuffEffect(target);
         
-        this.curseGlow = this.scene.add.circle(centerX, centerY, radius, 0x4B0082, 0.1);
-        this.curseGlow.setStrokeStyle(1, 0x4B0082, 0.4);
+        console.log(`Ведьма прокляла ${target.constructor.name}, урон: ${target.originalDamage} → ${target.damage}`);
+    }
+    
+    createCurseDebuffEffect(target) {
+        const aura = this.scene.add.circle(
+            target.sprite.x, target.sprite.y,
+            this.scene.gridSystem.cellSize * 0.6,
+            0x4B0082, 0.3
+        );
+        aura.setDepth(90);
         
-        // Пульсирующая анимация
         this.scene.tweens.add({
-            targets: this.curseGlow,
-            scaleX: 1.2,
-            scaleY: 1.2,
-            duration: 1500,
+            targets: aura,
+            alpha: 0.1,
+            duration: 1000,
             yoyo: true,
-            repeat: -1,
-            ease: 'Sine.easeInOut'
+            repeat: -1
         });
-    }
-    
-    applyCurse() {
-        const currentTime = this.scene.time.now;
-        if (currentTime - this.lastCurseTick < 1000) return;
         
-        this.lastCurseTick = currentTime;
-        
-        // Находим врагов в радиусе и применяем DoT
-        const enemies = this.isEnemy ? this.scene.playerUnits : this.scene.enemyUnits;
-        enemies.forEach(enemy => {
-            if (!enemy.isDead && this.getGridDistanceTo(enemy) <= this.curseRange) {
-                enemy.takeDamage(this.curseDamage);
-                this.createCurseTickEffect(enemy);
-            }
-        });
-    }
-    
-    createCurseTickEffect(target) {
-        // Визуальный эффект тика проклятия
-        const tick = this.scene.add.text(target.sprite.x, target.sprite.y - 20, `-${this.curseDamage}`, {
-            fontSize: '12px',
-            fill: '#4B0082',
-            fontStyle: 'bold'
-        }).setOrigin(0.5);
-        
-        this.scene.tweens.add({
-            targets: tick,
-            y: target.sprite.y - 40,
-            alpha: 0,
-            duration: 800,
-            onComplete: () => tick.destroy()
-        });
-    }
-    
-    setPosition(x, y) {
-        // Вызываем родительский метод для обновления позиции спрайта и HP бара
-        super.setPosition(x, y);
-        
-        // Обновляем позицию эффекта проклятия
-        if (this.curseGlow) {
-            const centerX = this.scene.gridSystem.gridOffsetX + 
-                ((this.gridX + this.size.width / 2) * this.scene.gridSystem.cellSize);
-            const centerY = this.scene.gridSystem.gridOffsetY + 
-                ((this.gridY + this.size.height / 2) * this.scene.gridSystem.cellSize);
-            this.curseGlow.setPosition(centerX, centerY);
+        if (target.curseAura) {
+            target.curseAura.destroy();
         }
+        target.curseAura = aura;
     }
     
     die() {
-        if (this.curseGlow) {
-            this.curseGlow.destroy();
-        }
+        this.cursedEnemies.forEach(enemy => {
+            if (enemy && enemy.isAlive() && enemy.isCursed) {
+                enemy.damage = enemy.originalDamage || enemy.damage;
+                enemy.isCursed = false;
+                if (enemy.curseAura) {
+                    enemy.curseAura.destroy();
+                    enemy.curseAura = null;
+                }
+            }
+        });
+        this.cursedEnemies.clear();
         super.die();
     }
 }
@@ -2144,8 +2154,6 @@ class BattleSystem {
         this.updateBattleCryBuffs(aliveEnemyUnits);
         
         // Применяем проклятия Ведьм
-        this.applyWitchCurses(alivePlayerUnits);
-        this.applyWitchCurses(aliveEnemyUnits);
         
         if (alivePlayerUnits.length === 0) {
             console.log('Поражение! Враги победили.');
@@ -2251,14 +2259,6 @@ class BattleSystem {
         });
     }
 
-    applyWitchCurses(units) {
-        // Применяем проклятия от всех живых Ведьм
-        units.forEach(unit => {
-            if (unit instanceof Witch && unit.isAlive()) {
-                unit.applyCurse();
-            }
-        });
-    }
 
     endBattle(victory) {
         this.isActive = false;
@@ -2762,9 +2762,9 @@ class GameScene extends Phaser.Scene {
                 fontStyle: 'bold'
             }).setOrigin(0.5);
 
-            const costText = this.add.text(x, shopY + 45, `${unitData.cost} монет`, {
-                fontSize: '14px',
-                fill: '#FFD700'
+            const costText = this.add.text(x, shopY + 45, 'БЕСПЛАТНО', {
+                fontSize: '12px',
+                fill: '#00FF00'
             }).setOrigin(0.5);
             
             // Создаем индикатор способности
@@ -2810,7 +2810,7 @@ class GameScene extends Phaser.Scene {
                 this.rerollShop();
             });
             
-        this.add.text(rerollX, shopY, 'REROLL\n1 монета', {
+        this.add.text(rerollX, shopY, 'REROLL\n5 монет', {
             fontSize: '10px',
             fill: '#ffffff',
             fontStyle: 'bold',
@@ -2861,8 +2861,8 @@ class GameScene extends Phaser.Scene {
     }
 
     rerollShop() {
-        if (this.economySystem.canAfford(1)) {
-            this.economySystem.spendCoins(1);
+        if (this.economySystem.canAfford(5)) {
+            this.economySystem.spendCoins(5);
             this.updateCoinsDisplay();
             this.generateShopUnits();
             const { GRID_HEIGHT } = window.gameConfig;
@@ -2870,7 +2870,7 @@ class GameScene extends Phaser.Scene {
             const shopY = fieldHeight + 250;
             const { startX, cardSpacing } = this.calculateShopPositions();
             this.createShopCards(shopY, startX, cardSpacing);
-            console.log('Магазин обновлен за 1 монету');
+            console.log('Магазин обновлен за 5 монет');
         } else {
             console.log('Недостаточно монет для реролла!');
         }
@@ -2918,29 +2918,26 @@ class GameScene extends Phaser.Scene {
         const unitData = window.gameConfig.UNIT_TYPES[unitType];
         console.log('Выбран юнит:', unitData.name, 'Цена:', unitData.cost, 'Монет:', this.economySystem.getCoins());
         
-        if (this.economySystem.canAfford(unitData.cost)) {
-            this.selectedUnitType = unitType;
-            this.selectedUnitData = unitData;
-            this.selectedCardIndex = cardIndex; // Сохраняем индекс карточки
-            
-            // Показываем подсказку
-            if (this.hintText) {
-                this.hintText.destroy();
-            }
-            this.hintText = this.add.text(240, 120, 'Кликните на НИЖНЮЮ половину поля', {
-                fontSize: '14px',
-                fill: '#FFD700',
-                fontStyle: 'bold',
-                backgroundColor: '#000000',
-                padding: { x: 10, y: 5 }
-            }).setOrigin(0.5);
-            
-            console.log('Юнит выбран, ожидаем клик по полю');
-            
-            // НЕ активируем режим размещения сразу - ждем клик по полю
-        } else {
-            console.log('Недостаточно монет!');
+        // Юниты теперь бесплатные
+        this.selectedUnitType = unitType;
+        this.selectedUnitData = unitData;
+        this.selectedCardIndex = cardIndex; // Сохраняем индекс карточки
+        
+        // Показываем подсказку
+        if (this.hintText) {
+            this.hintText.destroy();
         }
+        this.hintText = this.add.text(240, 120, 'Кликните на НИЖНЮЮ половину поля', {
+            fontSize: '14px',
+            fill: '#FFD700',
+            fontStyle: 'bold',
+            backgroundColor: '#000000',
+            padding: { x: 10, y: 5 }
+        }).setOrigin(0.5);
+        
+        console.log('Юнит выбран, ожидаем клик по полю');
+        
+        // НЕ активируем режим размещения сразу - ждем клик по полю
     }
 
 
@@ -2984,7 +2981,7 @@ class GameScene extends Phaser.Scene {
                 const success = placementResult.existingUnit.merge(this.selectedUnitType);
                 
                 if (success) {
-                    this.economySystem.spendCoins(this.selectedUnitData.cost);
+                    // Юниты бесплатные - не тратим монеты
                     this.updateCoinsDisplay();
                     
                     // Удаляем карточку из магазина
@@ -3002,7 +2999,7 @@ class GameScene extends Phaser.Scene {
                 // ОБЫЧНОЕ РАЗМЕЩЕНИЕ
                 console.log('Размещаем юнит в позиции:', gridPos);
                 this.placeUnit(this.selectedUnitType, gridPos.x, gridPos.y);
-                this.economySystem.spendCoins(this.selectedUnitData.cost);
+                // Юниты бесплатные - не тратим монеты
                 this.updateCoinsDisplay();
                 
                 // Удаляем карточку из магазина после успешной покупки
@@ -3571,7 +3568,7 @@ class GameScene extends Phaser.Scene {
         this.highlightedCells = [];
         
         const unitData = window.gameConfig.UNIT_TYPES[unitType];
-        if (!this.economySystem.canAfford(unitData.cost)) return;
+        // Юниты теперь бесплатные - убираем проверку стоимости
         
         this.isDragging = true;
         this.isDraggingFromField = false; // Сбрасываем флаг - перетаскивание из магазина
@@ -3731,7 +3728,7 @@ class GameScene extends Phaser.Scene {
                 console.log('Мердж из магазина:', this.selectedUnitType);
                 const success = placementResult.existingUnit.merge(this.selectedUnitType);
                 if (success) {
-                    this.economySystem.spendCoins(this.selectedUnitData.cost);
+                    // Юниты бесплатные - не тратим монеты
                     this.updateCoinsDisplay();
                     this.removeCardFromShop(cardIndex);
                     console.log('Мердж успешен!');
@@ -3742,7 +3739,7 @@ class GameScene extends Phaser.Scene {
                 // РАЗМЕЩЕНИЕ - создаем новый юнит
                 console.log('Размещение из магазина:', this.selectedUnitType);
                 this.placeUnit(this.selectedUnitType, gridPos.x, gridPos.y);
-                this.economySystem.spendCoins(this.selectedUnitData.cost);
+                // Юниты бесплатные - не тратим монеты
                 this.updateCoinsDisplay();
                 this.removeCardFromShop(cardIndex);
             }
