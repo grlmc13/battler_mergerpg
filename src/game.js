@@ -4325,9 +4325,44 @@ class Boss extends Unit {
 }
 
 // PvE Wave Mode Scene
-class GameScenePvE extends GameScene {
+class GameScenePvE extends Phaser.Scene {
     constructor() {
         super({ key: 'GameScenePvE' });
+        
+        // Копируем все свойства из GameScene
+        this.gameMode = 'pve';
+        this.gridSystem = null;
+        this.battleSystem = null;
+        this.economySystem = null;
+        this.playerUnits = [];
+        this.enemyUnits = [];
+        this.isBattleActive = false;
+        this.isPlacing = false;
+        this.selectedUnitType = null;
+        this.selectedUnitData = null;
+        this.selectedCardIndex = null;
+        this.hintText = null;
+        this.shopUnits = [];
+        this.shopCards = [];
+        this.sellArea = null;
+        this.currentRound = 1;
+        this.maxRounds = 5;
+        this.winsNeeded = 3;
+        this.roundResults = [];
+        this.roundText = null;
+        this.resultsText = null;
+        
+        // Drag-and-Drop состояние
+        this.isDragging = false;
+        this.isDraggingFromField = false;
+        this.dragGhost = null;
+        this.dragGhostElements = [];
+        this.highlightedCells = [];
+        this.dragStartX = 0;
+        this.dragStartY = 0;
+        this.draggedUnit = null;
+        
+        // PvE специфичные свойства
         this.currentWave = 1;
         this.totalWaves = window.gameConfig.PVE_WAVES.TOTAL_WAVES;
         this.isGameOver = false;
@@ -4338,18 +4373,558 @@ class GameScenePvE extends GameScene {
     }
 
     init(data) {
-        super.init(data);
         this.gameMode = 'pve';
         console.log('PvE Wave Mode initialized');
     }
 
+    preload() {
+        // Временно отключаем загрузку спрайтов из-за CORS
+        // TODO: Включить когда будет HTTP сервер
+    }
+
     create() {
-        super.create();
+        // Инициализируем системы
+        this.gridSystem = new GridSystem(this);
+        this.battleSystem = new BattleSystem(this);
+        this.economySystem = new EconomySystem(this);
         
-        // Скрываем PvP элементы
-        if (this.roundText) {
-            this.roundText.setVisible(false);
+        // Создаем игровое поле
+        const { GRID_WIDTH, GRID_HEIGHT, CELL_SIZE } = window.gameConfig;
+        this.gridSystem.createGrid(GRID_WIDTH, GRID_HEIGHT, CELL_SIZE);
+        
+        // Создаем UI
+        this.createUI();
+        
+        // Инициализируем экономику
+        this.economySystem.addCoins(window.gameConfig.PVE_WAVES.STARTING_COINS);
+        this.updateCoinsDisplay();
+        
+        // Генерируем магазин
+        this.generateShopUnits();
+        const fieldHeight = GRID_HEIGHT * this.gridSystem.cellSize;
+        const shopY = fieldHeight + 250;
+        const { startX, cardSpacing, cardWidth } = this.calculateShopPositions();
+        this.createShopCards(shopY, startX, cardSpacing, cardWidth);
+        
+        // Создаем PvE UI
+        this.createPvEUI();
+        
+        // Генерируем первую волну
+        this.generateWaveEnemies(this.currentWave);
+        
+        console.log('PvE Game Scene создана');
+    }
+
+    // Копируем необходимые методы из GameScene
+    createUI() {
+        const { GRID_HEIGHT } = window.gameConfig;
+        const fieldHeight = GRID_HEIGHT * this.gridSystem.cellSize;
+        
+        // Создаем кнопку боя
+        this.fightButton = this.add.rectangle(400, fieldHeight + 50, 200, 50, 0xE24A4A)
+            .setInteractive()
+            .on('pointerdown', () => {
+                this.startBattle();
+            });
+            
+        this.add.text(400, fieldHeight + 50, 'БОЙ', {
+            fontSize: '20px',
+            fill: '#ffffff',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+        
+        // Создаем отображение монет
+        this.coinsText = this.add.text(50, 50, `Монеты: ${this.economySystem.getCoins()}`, {
+            fontSize: '18px',
+            fill: '#FFD700',
+            fontStyle: 'bold'
+        });
+    }
+
+    updateCoinsDisplay() {
+        this.coinsText.setText(`Монеты: ${this.economySystem.getCoins()}`);
+        
+        // Обновляем визуальное состояние карточек магазина
+        this.shopCards.forEach((cardData, index) => {
+            if (cardData && cardData.unitData) {
+                const canAfford = this.economySystem.canAfford(cardData.unitData.cost);
+                const newColor = canAfford ? cardData.unitData.color : 0x666666;
+                
+                if (cardData.card) {
+                    cardData.card.setFillStyle(newColor);
+                    cardData.card.setInteractive({ draggable: canAfford });
+                    
+                    // Обновляем обработчики событий с актуальной проверкой
+                    cardData.card.removeAllListeners();
+                    cardData.card.on('pointerdown', () => {
+                        if (this.economySystem.canAfford(cardData.unitData.cost)) {
+                            this.selectUnit(cardData.unitType, index);
+                        } else {
+                            console.log('Недостаточно монет для покупки', cardData.unitData.name);
+                        }
+                    })
+                    .on('dragstart', (pointer, dragX, dragY) => {
+                        if (this.economySystem.canAfford(cardData.unitData.cost)) {
+                            this.onDragStart(cardData.unitType, index, pointer);
+                        }
+                    })
+                    .on('drag', (pointer, dragX, dragY) => {
+                        if (this.economySystem.canAfford(cardData.unitData.cost)) {
+                            this.onDrag(pointer, dragX, dragY);
+                        }
+                    })
+                    .on('dragend', (pointer) => {
+                        if (this.economySystem.canAfford(cardData.unitData.cost)) {
+                            this.onDragEnd(pointer, cardData.unitType, index);
+                        }
+                    });
+                }
+            }
+        });
+    }
+
+    generateShopUnits() {
+        this.shopUnits = [];
+        const unitTypes = Object.keys(window.gameConfig.UNIT_TYPES).filter(type => type !== 'BOSS');
+        
+        for (let i = 0; i < 3; i++) {
+            const randomType = Phaser.Utils.Array.GetRandom(unitTypes);
+            this.shopUnits.push(randomType);
         }
+    }
+
+    calculateShopPositions() {
+        const cardWidth = 120;
+        const cardSpacing = 140;
+        const startX = 400 - (cardSpacing * 1.5);
+        return { startX, cardSpacing, cardWidth };
+    }
+
+    createShopCards(shopY, startX, cardSpacing, cardWidth) {
+        // Очищаем старые карточки
+        this.shopCards.forEach(cardData => {
+            if (cardData.card) cardData.card.destroy();
+            if (cardData.icon) cardData.icon.destroy();
+            if (cardData.border) cardData.border.destroy();
+            if (cardData.nameText) cardData.nameText.destroy();
+            if (cardData.costText) cardData.costText.destroy();
+            if (cardData.specialIcon) cardData.specialIcon.destroy();
+            if (cardData.abilityIndicator) cardData.abilityIndicator.destroy();
+        });
+        this.shopCards = [];
+
+        this.shopUnits.forEach((type, index) => {
+            const unitData = window.gameConfig.UNIT_TYPES[type];
+            const x = startX + (index * cardSpacing);
+            
+            // Проверяем, хватает ли монет для покупки
+            const canAfford = this.economySystem.canAfford(unitData.cost);
+            
+            // Создаем основную карточку
+            const card = this.add.rectangle(x, shopY, cardWidth, 100, canAfford ? unitData.color : 0x666666)
+                .setInteractive({ draggable: canAfford })
+                .on('pointerdown', () => {
+                    if (this.economySystem.canAfford(unitData.cost)) {
+                        this.selectUnit(type, index);
+                    } else {
+                        console.log('Недостаточно монет для покупки', unitData.name);
+                    }
+                })
+                .on('dragstart', (pointer, dragX, dragY) => {
+                    if (this.economySystem.canAfford(unitData.cost)) {
+                        this.onDragStart(type, index, pointer);
+                    }
+                })
+                .on('drag', (pointer, dragX, dragY) => {
+                    if (this.economySystem.canAfford(unitData.cost)) {
+                        this.onDrag(pointer, dragX, dragY);
+                    }
+                })
+                .on('dragend', (pointer) => {
+                    if (this.economySystem.canAfford(unitData.cost)) {
+                        this.onDragEnd(pointer, type, index);
+                    }
+                });
+
+            // Иконки юнитов - соответствуют реальным размерам
+            const iconScale = 0.6;
+            const iconSize = this.gridSystem.cellSize * iconScale;
+            const iconWidth = iconSize * unitData.size.width;
+            const iconHeight = iconSize * unitData.size.height;
+            
+            // Создаем иконку юнита
+            let icon, border, specialIcon, abilityIndicator;
+            
+            if (type === 'ARCHER') {
+                icon = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, unitData.color);
+                border = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, 0x000000, 0).setStrokeStyle(1, 0x333333);
+                specialIcon = this.add.text(x, shopY - 20, '🏹', {
+                    fontSize: '12px',
+                    fill: '#4A90E2',
+                    fontStyle: 'bold'
+                }).setOrigin(0.5);
+            } else if (type === 'WARRIOR') {
+                icon = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, unitData.color);
+                border = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, 0x000000, 0).setStrokeStyle(1, 0x333333);
+                specialIcon = this.add.text(x, shopY - 20, '⚔', {
+                    fontSize: '12px',
+                    fill: '#E24A4A',
+                    fontStyle: 'bold'
+                }).setOrigin(0.5);
+            } else if (type === 'BARBARIAN') {
+                icon = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, unitData.color);
+                border = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, 0x000000, 0).setStrokeStyle(1, 0x333333);
+                specialIcon = this.add.text(x, shopY - 20, '🛡', {
+                    fontSize: '12px',
+                    fill: '#FF8C00',
+                    fontStyle: 'bold'
+                }).setOrigin(0.5);
+            } else if (type === 'HEALER') {
+                icon = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, unitData.color);
+                border = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, 0x000000, 0).setStrokeStyle(1, 0x333333);
+                specialIcon = this.add.text(x, shopY - 20, '❤', {
+                    fontSize: '12px',
+                    fill: '#32CD32',
+                    fontStyle: 'bold'
+                }).setOrigin(0.5);
+            } else if (type === 'MAGE') {
+                icon = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, unitData.color);
+                border = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, 0x000000, 0).setStrokeStyle(1, 0x333333);
+                specialIcon = this.add.text(x, shopY - 20, '🔮', {
+                    fontSize: '12px',
+                    fill: '#8A2BE2',
+                    fontStyle: 'bold'
+                }).setOrigin(0.5);
+            } else if (type === 'TANK') {
+                icon = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, unitData.color);
+                border = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, 0x000000, 0).setStrokeStyle(1, 0x333333);
+                specialIcon = this.add.text(x, shopY - 20, '🛡', {
+                    fontSize: '12px',
+                    fill: '#C0C0C0',
+                    fontStyle: 'bold'
+                }).setOrigin(0.5);
+            } else if (type === 'ASSASSIN') {
+                icon = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, unitData.color);
+                border = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, 0x000000, 0).setStrokeStyle(1, 0x333333);
+                specialIcon = this.add.text(x, shopY - 20, '🗡', {
+                    fontSize: '12px',
+                    fill: '#2F4F4F',
+                    fontStyle: 'bold'
+                }).setOrigin(0.5);
+            } else if (type === 'DRUID') {
+                icon = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, unitData.color);
+                border = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, 0x000000, 0).setStrokeStyle(1, 0x333333);
+                specialIcon = this.add.text(x, shopY - 20, '♠', {
+                    fontSize: '12px',
+                    fill: '#00FF00',
+                    fontStyle: 'bold'
+                }).setOrigin(0.5);
+            } else if (type === 'WITCH') {
+                icon = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, unitData.color);
+                border = this.add.rectangle(x, shopY - 20, iconWidth, iconHeight, 0x000000, 0).setStrokeStyle(1, 0x333333);
+                specialIcon = this.add.text(x, shopY - 20, '☠', {
+                    fontSize: '12px',
+                    fill: '#FF00FF',
+                    fontStyle: 'bold'
+                }).setOrigin(0.5);
+            }
+
+            // Создаем тексты
+            const nameText = this.add.text(x, shopY + 25, unitData.name, {
+                fontSize: '16px',
+                fill: '#ffffff',
+                fontStyle: 'bold'
+            }).setOrigin(0.5);
+            
+            const costText = this.add.text(x, shopY + 45, `${unitData.cost} монет`, {
+                fontSize: '12px',
+                fill: '#FFD700'
+            }).setOrigin(0.5);
+
+            // Сохраняем все элементы карточки для последующего удаления
+            this.shopCards.push({
+                card: card,
+                icon: icon,
+                border: border,
+                nameText: nameText,
+                costText: costText,
+                specialIcon: specialIcon,
+                abilityIndicator: abilityIndicator,
+                unitData: unitData,
+                unitType: type
+            });
+        });
+    }
+
+    selectUnit(unitType, cardIndex = null) {
+        if (this.isBattleActive) {
+            console.log('Бой активен, нельзя покупать юнитов');
+            return;
+        }
+        
+        const unitData = window.gameConfig.UNIT_TYPES[unitType];
+        console.log('Выбран юнит:', unitData.name, 'Цена:', unitData.cost, 'Монет:', this.economySystem.getCoins());
+        
+        // Проверяем, хватает ли монет
+        if (!this.economySystem.canAfford(unitData.cost)) {
+            console.log('Недостаточно монет для покупки', unitData.name);
+            return;
+        }
+        
+        this.selectedUnitType = unitType;
+        this.selectedUnitData = unitData;
+        this.selectedCardIndex = cardIndex;
+        
+        // Показываем подсказку
+        if (this.hintText) {
+            this.hintText.destroy();
+        }
+        this.hintText = this.add.text(400, 100, `Выбран: ${unitData.name}`, {
+            fontSize: '14px',
+            fill: '#FFD700',
+            fontStyle: 'bold',
+            backgroundColor: '#000000',
+            padding: { x: 10, y: 5 }
+        }).setOrigin(0.5);
+    }
+
+    startBattle() {
+        console.log('=== НАЧАЛО БОЯ ===');
+        console.log('Бой уже активен?', this.isBattleActive);
+        console.log('Юнитов игрока:', this.playerUnits.length);
+        
+        if (this.isBattleActive) {
+            console.log('Бой уже идет!');
+            return;
+        }
+        
+        if (this.playerUnits.length === 0) {
+            console.log('Нет юнитов для боя!');
+            return;
+        }
+        
+        this.isBattleActive = true;
+        this.fightButton.setFillStyle(0x666666);
+        
+        this.battleSystem.startBattle(this.playerUnits, this.enemyUnits);
+    }
+
+    placeUnit(unitType, gridX, gridY) {
+        const unitData = window.gameConfig.UNIT_TYPES[unitType];
+        let unit;
+        
+        switch (unitType) {
+            case 'ARCHER':
+                unit = new Archer(this, 0, 0);
+                break;
+            case 'WARRIOR':
+                unit = new Warrior(this, 0, 0);
+                break;
+            case 'BARBARIAN':
+                unit = new Barbarian(this, 0, 0);
+                break;
+            case 'HEALER':
+                unit = new Healer(this, 0, 0);
+                break;
+            case 'MAGE':
+                unit = new Mage(this, 0, 0);
+                break;
+            case 'TANK':
+                unit = new Tank(this, 0, 0);
+                break;
+            case 'ASSASSIN':
+                unit = new Assassin(this, 0, 0);
+                break;
+            case 'DRUID':
+                unit = new Druid(this, 0, 0);
+                break;
+            case 'WITCH':
+                unit = new Witch(this, 0, 0);
+                break;
+        }
+        
+        if (unit) {
+            this.playerUnits.push(unit);
+            this.gridSystem.placeUnit(gridX, gridY, unit);
+        }
+    }
+
+    handleFieldClick(pointer) {
+        if (this.isBattleActive) {
+            console.log('Бой активен, нельзя размещать юнитов');
+            return;
+        }
+        
+        if (!this.selectedUnitType) {
+            console.log('Не выбран юнит для размещения');
+            return;
+        }
+        
+        const gridPos = this.gridSystem.getGridPosition(pointer.x, pointer.y);
+        console.log('Клик по позиции:', pointer.x, pointer.y, '-> сетка:', gridPos);
+        
+        // Проверяем возможность размещения или мерджа
+        const placementResult = this.gridSystem.canPlaceOrMerge(
+            gridPos.x, 
+            gridPos.y, 
+            this.selectedUnitData.size, 
+            this.selectedUnitType, 
+            false // не враг
+        );
+        
+        if (placementResult.canPlace) {
+            if (placementResult.isMerge) {
+                // МЕРДЖ
+                console.log('Мердж юнита!', this.selectedUnitType);
+                const success = placementResult.existingUnit.merge(this.selectedUnitType);
+                
+                if (success) {
+                    this.updateCoinsDisplay();
+                    
+                    // Удаляем карточку из магазина
+                    if (this.selectedCardIndex !== null) {
+                        this.removeCardFromShop(this.selectedCardIndex);
+                    }
+                    
+                    this.selectedUnitType = null;
+                    this.selectedUnitData = null;
+                    this.selectedCardIndex = null;
+                } else {
+                    console.log('Мердж не удался. Попробуйте еще раз.');
+                }
+            } else {
+                // ОБЫЧНОЕ РАЗМЕЩЕНИЕ
+                // Проверяем, хватает ли монет
+                if (!this.economySystem.canAfford(this.selectedUnitData.cost)) {
+                    console.log('Недостаточно монет для покупки', this.selectedUnitData.name);
+                    return;
+                }
+                
+                console.log('Размещаем юнит в позиции:', gridPos);
+                this.placeUnit(this.selectedUnitType, gridPos.x, gridPos.y);
+                // Списываем монеты за покупку
+                this.economySystem.spendCoins(this.selectedUnitData.cost);
+                this.updateCoinsDisplay();
+                
+                // Удаляем карточку из магазина после успешной покупки
+                if (this.selectedCardIndex !== null) {
+                    this.removeCardFromShop(this.selectedCardIndex);
+                }
+                
+                this.selectedUnitType = null;
+                this.selectedUnitData = null;
+                this.selectedCardIndex = null;
+            }
+        } else {
+            console.log('Нельзя разместить в этой позиции');
+        }
+    }
+
+    removeCardFromShop(cardIndex) {
+        if (cardIndex >= 0 && cardIndex < this.shopCards.length) {
+            const cardData = this.shopCards[cardIndex];
+            if (cardData.card) cardData.card.destroy();
+            if (cardData.icon) cardData.icon.destroy();
+            if (cardData.border) cardData.border.destroy();
+            if (cardData.nameText) cardData.nameText.destroy();
+            if (cardData.costText) cardData.costText.destroy();
+            if (cardData.specialIcon) cardData.specialIcon.destroy();
+            if (cardData.abilityIndicator) cardData.abilityIndicator.destroy();
+            
+            this.shopCards.splice(cardIndex, 1);
+        }
+    }
+
+    // Drag and Drop методы (упрощенные версии)
+    onDragStart(unitType, cardIndex, pointer) {
+        if (this.isBattleActive) return;
+        
+        this.isDragging = true;
+        this.selectedUnitType = unitType;
+        this.selectedUnitData = window.gameConfig.UNIT_TYPES[unitType];
+        this.selectedCardIndex = cardIndex;
+        
+        // Создаем призрак
+        this.dragGhost = this.add.rectangle(pointer.x, pointer.y, 60, 60, this.selectedUnitData.color, 0.7);
+        this.dragGhostElements.push(this.dragGhost);
+    }
+
+    onDrag(pointer, dragX, dragY) {
+        if (!this.isDragging) return;
+        
+        if (this.dragGhost) {
+            this.dragGhost.setPosition(pointer.x, pointer.y);
+        }
+    }
+
+    onDragEnd(pointer, unitType, cardIndex) {
+        if (!this.isDragging) return;
+        
+        // Удаляем призрак
+        this.dragGhostElements.forEach(elem => elem.destroy());
+        this.dragGhostElements = [];
+        
+        const gridPos = this.gridSystem.getGridPosition(pointer.x, pointer.y);
+        
+        // Проверяем, можем ли разместить
+        const placementResult = this.gridSystem.canPlaceOrMerge(
+            gridPos.x, gridPos.y,
+            this.selectedUnitData.size,
+            this.selectedUnitType,
+            false
+        );
+        
+        if (placementResult.canPlace) {
+            if (placementResult.isMerge) {
+                // МЕРДЖ
+                console.log('Мердж из магазина:', this.selectedUnitType);
+                const success = placementResult.existingUnit.merge(this.selectedUnitType);
+                if (success) {
+                    this.updateCoinsDisplay();
+                    this.removeCardFromShop(cardIndex);
+                    console.log('Мердж успешен!');
+                } else {
+                    console.log('Мердж не удался');
+                }
+            } else {
+                // РАЗМЕЩЕНИЕ
+                // Проверяем, хватает ли монет
+                if (!this.economySystem.canAfford(this.selectedUnitData.cost)) {
+                    console.log('Недостаточно монет для покупки', this.selectedUnitData.name);
+                    return;
+                }
+                
+                console.log('Размещение из магазина:', this.selectedUnitType);
+                this.placeUnit(this.selectedUnitType, gridPos.x, gridPos.y);
+                // Списываем монеты за покупку
+                this.economySystem.spendCoins(this.selectedUnitData.cost);
+                this.updateCoinsDisplay();
+                this.removeCardFromShop(cardIndex);
+            }
+        } else {
+            console.log('Нельзя разместить в этой позиции');
+        }
+        
+        // Сброс состояния
+        this.isDragging = false;
+        this.selectedUnitType = null;
+        this.selectedUnitData = null;
+        this.selectedCardIndex = null;
+    }
+
+    resurrectUnits() {
+        console.log('=== ВОСКРЕШЕНИЕ И ЛЕЧЕНИЕ ЮНИТОВ ===');
+        
+        this.playerUnits.forEach(unit => {
+            if (!unit.isAlive()) {
+                console.log(`Воскрешаем ${unit.constructor.name}`);
+            }
+            unit.hp = unit.maxHp;
+            unit.updateVisuals();
+        });
+        
+        console.log('Все юниты воскрешены и полностью исцелены');
+    }
         if (this.resultsText) {
             this.resultsText.setVisible(false);
         }
