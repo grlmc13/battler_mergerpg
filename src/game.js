@@ -2961,6 +2961,12 @@ class GameScene extends Phaser.Scene {
             return;
         }
         
+        // Проверяем, хватает ли монет для покупки
+        if (!this.economySystem.canAfford(this.selectedUnitData.cost)) {
+            console.log('Недостаточно монет для покупки', this.selectedUnitData.name);
+            return;
+        }
+        
         // Удаляем подсказку
         if (this.hintText) {
             this.hintText.destroy();
