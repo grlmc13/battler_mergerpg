@@ -2679,20 +2679,33 @@ class GameScene extends Phaser.Scene {
             const unitData = UNIT_TYPES[type];
             const x = startX + (index * cardSpacing);
             
+            // Проверяем, хватает ли монет для покупки
+            const canAfford = this.economySystem.canAfford(unitData.cost);
+            
             // Создаем основную карточку
-            const card = this.add.rectangle(x, shopY, cardWidth, 100, unitData.color)
-                .setInteractive({ draggable: true })
+            const card = this.add.rectangle(x, shopY, cardWidth, 100, canAfford ? unitData.color : 0x666666)
+                .setInteractive({ draggable: canAfford })
                 .on('pointerdown', () => {
-                    this.selectUnit(type, index);
+                    if (canAfford) {
+                        this.selectUnit(type, index);
+                    } else {
+                        console.log('Недостаточно монет для покупки', unitData.name);
+                    }
                 })
                 .on('dragstart', (pointer, dragX, dragY) => {
-                    this.onDragStart(type, index, pointer);
+                    if (canAfford) {
+                        this.onDragStart(type, index, pointer);
+                    }
                 })
                 .on('drag', (pointer, dragX, dragY) => {
-                    this.onDrag(pointer, dragX, dragY);
+                    if (canAfford) {
+                        this.onDrag(pointer, dragX, dragY);
+                    }
                 })
                 .on('dragend', (pointer) => {
-                    this.onDragEnd(pointer, type, index);
+                    if (canAfford) {
+                        this.onDragEnd(pointer, type, index);
+                    }
                 });
 
             // Иконки юнитов - соответствуют реальным размерам
@@ -2795,7 +2808,9 @@ class GameScene extends Phaser.Scene {
                 nameText: nameText,
                 costText: costText,
                 specialIcon: specialIcon,
-                abilityIndicator: abilityIndicator
+                abilityIndicator: abilityIndicator,
+                unitData: unitData,
+                unitType: type
             });
         });
     }
@@ -2961,11 +2976,6 @@ class GameScene extends Phaser.Scene {
             return;
         }
         
-        // Проверяем, хватает ли монет для покупки
-        if (!this.economySystem.canAfford(this.selectedUnitData.cost)) {
-            console.log('Недостаточно монет для покупки', this.selectedUnitData.name);
-            return;
-        }
         
         // Удаляем подсказку
         if (this.hintText) {
@@ -3215,6 +3225,19 @@ class GameScene extends Phaser.Scene {
 
     updateCoinsDisplay() {
         this.coinsText.setText(`Монеты: ${this.economySystem.getCoins()}`);
+        
+        // Обновляем визуальное состояние карточек магазина
+        this.shopCards.forEach((cardData, index) => {
+            if (cardData && cardData.unitData) {
+                const canAfford = this.economySystem.canAfford(cardData.unitData.cost);
+                const newColor = canAfford ? cardData.unitData.color : 0x666666;
+                
+                if (cardData.card) {
+                    cardData.card.setFillStyle(newColor);
+                    cardData.card.setInteractive({ draggable: canAfford });
+                }
+            }
+        });
     }
 
     endBattle(victory) {
@@ -3718,12 +3741,6 @@ class GameScene extends Phaser.Scene {
     onDragEnd(pointer, unitType, cardIndex) {
         if (!this.isDragging) return;
         
-        // Проверяем, хватает ли монет для покупки
-        if (!this.economySystem.canAfford(this.selectedUnitData.cost)) {
-            console.log('Недостаточно монет для покупки', this.selectedUnitData.name);
-            this.isDragging = false;
-            return;
-        }
         
         // Удаляем призрак и подсветку
         this.dragGhostElements.forEach(elem => elem.destroy());
