@@ -120,7 +120,7 @@ window.gameConfig = {
         ASSASSIN: {
             name: 'Ассасин',
             size: { width: 1, height: 1 },
-            cost: 0,
+            cost: 3,
             hp: 20,
             damage: 20,
             attackSpeed: 1.2,
@@ -139,7 +139,7 @@ window.gameConfig = {
                 { x: 0, y: 1 }, // Bottom-left
                 { x: 1, y: 1 }  // Bottom-right
             ],
-            cost: 0,
+            cost: 4,
             hp: 45,
             damage: 6,
             attackSpeed: 1.8,
@@ -158,7 +158,7 @@ window.gameConfig = {
                 { x: 0, y: 1 }, // Bottom-left  
                 { x: 1, y: 1 }  // Bottom-right (missing top-right)
             ],
-            cost: 0,
+            cost: 6,
             hp: 35,
             damage: 12,
             attackSpeed: 3.0,
