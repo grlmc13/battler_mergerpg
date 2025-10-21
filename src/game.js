@@ -2762,9 +2762,9 @@ class GameScene extends Phaser.Scene {
                 fontStyle: 'bold'
             }).setOrigin(0.5);
 
-            const costText = this.add.text(x, shopY + 45, 'БЕСПЛАТНО', {
+            const costText = this.add.text(x, shopY + 45, `${unitData.cost} монет`, {
                 fontSize: '12px',
-                fill: '#00FF00'
+                fill: '#FFD700'
             }).setOrigin(0.5);
             
             // Создаем индикатор способности
@@ -2918,7 +2918,12 @@ class GameScene extends Phaser.Scene {
         const unitData = window.gameConfig.UNIT_TYPES[unitType];
         console.log('Выбран юнит:', unitData.name, 'Цена:', unitData.cost, 'Монет:', this.economySystem.getCoins());
         
-        // Юниты теперь бесплатные
+        // Проверяем, хватает ли монет
+        if (!this.economySystem.canAfford(unitData.cost)) {
+            console.log('Недостаточно монет для покупки', unitData.name);
+            return;
+        }
+        
         this.selectedUnitType = unitType;
         this.selectedUnitData = unitData;
         this.selectedCardIndex = cardIndex; // Сохраняем индекс карточки
@@ -2999,7 +3004,8 @@ class GameScene extends Phaser.Scene {
                 // ОБЫЧНОЕ РАЗМЕЩЕНИЕ
                 console.log('Размещаем юнит в позиции:', gridPos);
                 this.placeUnit(this.selectedUnitType, gridPos.x, gridPos.y);
-                // Юниты бесплатные - не тратим монеты
+                // Списываем монеты за покупку
+                this.economySystem.spendCoins(this.selectedUnitData.cost);
                 this.updateCoinsDisplay();
                 
                 // Удаляем карточку из магазина после успешной покупки
@@ -3739,7 +3745,8 @@ class GameScene extends Phaser.Scene {
                 // РАЗМЕЩЕНИЕ - создаем новый юнит
                 console.log('Размещение из магазина:', this.selectedUnitType);
                 this.placeUnit(this.selectedUnitType, gridPos.x, gridPos.y);
-                // Юниты бесплатные - не тратим монеты
+                // Списываем монеты за покупку
+                this.economySystem.spendCoins(this.selectedUnitData.cost);
                 this.updateCoinsDisplay();
                 this.removeCardFromShop(cardIndex);
             }
