@@ -2810,7 +2810,7 @@ class GameScene extends Phaser.Scene {
                 this.rerollShop();
             });
             
-        this.add.text(rerollX, shopY, 'REROLL\n5 монет', {
+        this.add.text(rerollX, shopY, 'REROLL\n2 монет', {
             fontSize: '10px',
             fill: '#ffffff',
             fontStyle: 'bold',
@@ -2861,8 +2861,8 @@ class GameScene extends Phaser.Scene {
     }
 
     rerollShop() {
-        if (this.economySystem.canAfford(5)) {
-            this.economySystem.spendCoins(5);
+        if (this.economySystem.canAfford(2)) {
+            this.economySystem.spendCoins(2);
             this.updateCoinsDisplay();
             this.generateShopUnits();
             const { GRID_HEIGHT } = window.gameConfig;
