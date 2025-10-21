@@ -4358,8 +4358,11 @@ class GameScene extends Phaser.Scene {
         
         if (unit) {
             // Позиционируем юнит на правильной позиции
-            const worldPos = this.gridSystem.gridToWorld(gridX, gridY);
-            unit.setPosition(worldPos.x, worldPos.y);
+            const startX = this.gridSystem.gridOffsetX + (gridX * this.gridSystem.cellSize);
+            const startY = this.gridSystem.gridOffsetY + (gridY * this.gridSystem.cellSize);
+            const centerX = startX + (unitData.size.width * this.gridSystem.cellSize / 2);
+            const centerY = startY + (unitData.size.height * this.gridSystem.cellSize / 2);
+            unit.setPosition(centerX, centerY);
         }
         
         return unit;
