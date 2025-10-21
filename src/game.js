@@ -4925,16 +4925,6 @@ class GameScenePvE extends Phaser.Scene {
         
         console.log('Все юниты воскрешены и полностью исцелены');
     }
-        if (this.resultsText) {
-            this.resultsText.setVisible(false);
-        }
-        
-        // Создаем PvE UI
-        this.createPvEUI();
-        
-        // Генерируем первую волну
-        this.generateWaveEnemies(this.currentWave);
-    }
 
     createPvEUI() {
         const { GRID_HEIGHT } = window.gameConfig;
