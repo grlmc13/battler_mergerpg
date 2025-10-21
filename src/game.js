@@ -2689,7 +2689,7 @@ class GameScene extends Phaser.Scene {
 
     generateShopUnits() {
         const { UNIT_TYPES } = window.gameConfig;
-        const unitTypes = Object.keys(UNIT_TYPES);
+        const unitTypes = Object.keys(UNIT_TYPES).filter(type => type !== 'BOSS');
         
         this.shopUnits = [];
         for (let i = 0; i < 4; i++) { // Увеличено с 3 до 4
