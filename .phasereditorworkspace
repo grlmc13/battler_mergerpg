@@ -1,0 +1,12 @@
+{
+  "version": "4.11.2",
+  "projectName": "MergePrototype",
+  "projectPath": ".",
+  "assetsPath": "src/assets",
+  "scenesPath": "src/scenes",
+  "scriptsPath": "src",
+  "buildPath": "dist",
+  "entryPoint": "src/main-editor.js",
+  "htmlTemplate": "index-editor.html"
+}
+

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Scene - MergePrototype</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #1a1a2e;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        #game-container {
+            width: 100vw;
+            height: 100vh;
+            max-width: 480px;
+            max-height: 1000px;
+            border: 2px solid #333;
+            border-radius: 10px;
+            overflow: hidden;
+            background: #16213e;
+        }
+        
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div class="loading">Загрузка сцены...</div>
+    </div>
+    
+    <!-- Загружаем Phaser -->
+    <script src="https://unpkg.com/phaser@3.55.2/dist/phaser.min.js"></script>
+    
+    <!-- Загружаем сцену -->
+    <script>
+        // Простая сцена для тестирования
+        class TestScene extends Phaser.Scene {
+            constructor() {
+                super({ key: 'TestScene' });
+            }
+
+            create() {
+                // Создаем игровое поле
+                const gameField = this.add.rectangle(240, 300, 400, 300, 0x2a2a2a);
+                gameField.setStrokeStyle(2, 0x444444);
+                
+                // Создаем области игрока и врага
+                const playerArea = this.add.rectangle(240, 200, 400, 150, 0x1a2a3a);
+                playerArea.setStrokeStyle(2, 0x2a4a6a);
+                
+                const enemyArea = this.add.rectangle(240, 400, 400, 150, 0x3a1a1a);
+                enemyArea.setStrokeStyle(2, 0x6a2a2a);
+                
+                // Создаем панель магазина
+                const shopPanel = this.add.rectangle(240, 700, 480, 100, 0x1a1a2a);
+                shopPanel.setStrokeStyle(1, 0x333333);
+                
+                // Создаем кнопку Fight
+                const fightButton = this.add.rectangle(150, 700, 100, 40, 0x4a90e2);
+                fightButton.setStrokeStyle(2, 0x2a5a9e);
+                fightButton.setInteractive();
+                
+                // Добавляем текст
+                this.add.text(150, 700, 'Fight', {
+                    fontSize: '20px',
+                    fill: '#ffffff',
+                    fontFamily: 'Arial'
+                }).setOrigin(0.5);
+                
+                this.add.text(50, 700, 'Монеты: 10', {
+                    fontSize: '16px',
+                    fill: '#FFD700',
+                    fontFamily: 'Arial'
+                });
+                
+                // Добавляем подписи
+                this.add.text(240, 120, 'ИГРОВОЕ ПОЛЕ', {
+                    fontSize: '24px',
+                    fill: '#ffffff',
+                    fontFamily: 'Arial'
+                }).setOrigin(0.5);
+                
+                this.add.text(240, 160, 'ИГРОК', {
+                    fontSize: '18px',
+                    fill: '#4a90e2',
+                    fontFamily: 'Arial'
+                }).setOrigin(0.5);
+                
+                this.add.text(240, 360, 'ВРАГ', {
+                    fontSize: '18px',
+                    fill: '#e24a4a',
+                    fontFamily: 'Arial'
+                }).setOrigin(0.5);
+                
+                this.add.text(240, 650, 'МАГАЗИН', {
+                    fontSize: '18px',
+                    fill: '#ffffff',
+                    fontFamily: 'Arial'
+                }).setOrigin(0.5);
+                
+                console.log('Тестовая сцена загружена!');
+            }
+        }
+
+        // Конфигурация Phaser
+        const config = {
+            type: Phaser.AUTO,
+            width: 480,
+            height: 800,
+            parent: 'game-container',
+            backgroundColor: '#16213e',
+            scene: [TestScene]
+        };
+
+        // Запуск игры
+        const game = new Phaser.Game(config);
+    </script>
+</body>
+</html>

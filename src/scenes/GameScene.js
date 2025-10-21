@@ -1,264 +1,137 @@
 // Основная игровая сцена
-import { GridSystem } from '../systems/GridSystem.js';
-import { Unit } from '../entities/Unit.js';
-import { Archer } from '../entities/Archer.js';
-import { Warrior } from '../entities/Warrior.js';
-import { Mage } from '../entities/Mage.js';
-import { BattleSystem } from '../systems/BattleSystem.js';
-import { EconomySystem } from '../systems/EconomySystem.js';
-
-export class GameScene extends Phaser.Scene {
+class GameScene extends Phaser.Scene {
     constructor() {
         super({ key: 'GameScene' });
         
+        // Игровые системы
         this.gridSystem = null;
         this.battleSystem = null;
         this.economySystem = null;
+        
+        // Игровые объекты
         this.playerUnits = [];
         this.enemyUnits = [];
-        this.isBattleActive = false;
-        this.shopUI = null;
+        this.shopCards = [];
+        
+        // UI элементы
+        this.shopPanel = null;
+        this.fightButton = null;
+        this.coinText = null;
+        
+        // Состояние игры
+        this.coins = 10;
+        this.isDragging = false;
+        this.selectedUnit = null;
+    }
+
+    preload() {
+        // Загружаем спрайты юнитов
+        this.load.image('tank', 'src/assets/sprites/units/tank.png');
+        this.load.image('druid', 'src/assets/sprites/units/druid.png');
+        this.load.image('healer', 'src/assets/sprites/units/Dark Elves Healer Priestess.png');
+        this.load.image('witch', 'src/assets/sprites/units/witch.png');
+        this.load.image('barbarian', 'src/assets/sprites/units/Dwarf Axe Warrior.png');
+        this.load.image('archer', 'src/assets/sprites/units/Elf_Archer.png');
+        this.load.image('warrior', 'src/assets/sprites/units/Elf_Knight_Sword.png');
+        this.load.image('mage', 'src/assets/sprites/units/Dark Elves Crystal Mage.png');
+        this.load.image('assassin', 'src/assets/sprites/units/assassin.png');
+        
+        // Загружаем UI элементы
+        this.load.image('shopCard', 'src/assets/sprites/ui/shop_card.png');
+        this.load.image('fightButton', 'src/assets/sprites/ui/fight_button.png');
     }
 
     create() {
-        // Инициализация систем
+        // Инициализируем системы
         this.gridSystem = new GridSystem(this);
         this.battleSystem = new BattleSystem(this);
         this.economySystem = new EconomySystem(this);
         
-        // Создание игрового поля
-        this.createGameField();
+        // Создаем игровое поле
+        this.gridSystem.createGrid();
         
-        // Создание UI
+        // Создаем UI
         this.createUI();
         
-        // Создание магазина
+        // Создаем магазин
         this.createShop();
         
-        console.log('Игровая сцена создана');
-    }
-
-    createGameField() {
-        const { GRID_WIDTH, GRID_HEIGHT, CELL_SIZE } = window.gameConfig;
-        
-        // Создание сетки
-        this.gridSystem.createGrid(GRID_WIDTH, GRID_HEIGHT, CELL_SIZE);
-        
-        // Разделительная линия между игроком и врагом
-        const centerY = (GRID_HEIGHT * CELL_SIZE) / 2;
-        this.add.line(0, centerY, 0, 0, GRID_WIDTH * CELL_SIZE, 0, 0x666666)
-            .setLineWidth(2);
+        console.log('GameScene создана успешно!');
     }
 
     createUI() {
-        const { GRID_WIDTH, GRID_HEIGHT, CELL_SIZE } = window.gameConfig;
+        // Создаем панель магазина
+        this.shopPanel = this.add.rectangle(240, 700, 480, 100, 0x2a2a2a, 0.9);
         
-        // Кнопка Fight
-        this.fightButton = this.add.rectangle(400, 50, 120, 40, 0xE24A4A)
+        // Создаем кнопку "Fight"
+        this.fightButton = this.add.image(400, 700, 'fightButton')
             .setInteractive()
-            .on('pointerdown', () => {
-                this.startBattle();
-            });
-
-        this.add.text(400, 50, 'FIGHT', {
-            fontSize: '16px',
-            fill: '#ffffff',
-            fontStyle: 'bold'
-        }).setOrigin(0.5);
-
-        // Счетчик монет
-        this.coinsText = this.add.text(80, 50, `Монеты: ${this.economySystem.getCoins()}`, {
-            fontSize: '16px',
+            .setScale(0.8);
+            
+        this.fightButton.on('pointerdown', () => {
+            this.startBattle();
+        });
+        
+        // Создаем счетчик монет
+        this.coinText = this.add.text(50, 700, `Монеты: ${this.coins}`, {
+            fontSize: '20px',
             fill: '#FFD700',
-            fontStyle: 'bold'
-        });
-
-        // Эффекты кнопки Fight
-        this.fightButton.on('pointerover', () => {
-            this.fightButton.setFillStyle(0xF25A5A);
-        });
-
-        this.fightButton.on('pointerout', () => {
-            this.fightButton.setFillStyle(0xE24A4A);
+            fontFamily: 'Arial'
         });
     }
 
     createShop() {
-        const { UNIT_TYPES } = window.gameConfig;
-        const shopY = 600;
+        const unitTypes = ['ARCHER', 'WARRIOR', 'MAGE', 'TANK', 'DRUID', 'HEALER', 'WITCH', 'BARBARIAN', 'ASSASSIN'];
+        const startX = 50;
+        const cardSpacing = 50;
         
-        // Заголовок магазина
-        this.add.text(240, shopY - 30, 'МАГАЗИН', {
-            fontSize: '18px',
-            fill: '#ffffff',
-            fontStyle: 'bold'
-        }).setOrigin(0.5);
-
-        // Карточки юнитов
-        const unitTypes = Object.keys(UNIT_TYPES);
-        unitTypes.forEach((type, index) => {
-            const unitData = UNIT_TYPES[type];
-            const x = 80 + (index * 100);
-            
-            // Карточка юнита
-            const card = this.add.rectangle(x, shopY, 80, 100, unitData.color)
-                .setInteractive()
-                .on('pointerdown', () => {
-                    this.selectUnit(type);
+        unitTypes.forEach((unitType, index) => {
+            const unitData = window.gameConfig.UNIT_TYPES[unitType];
+            if (unitData) {
+                const cardX = startX + (index * cardSpacing);
+                const card = this.add.image(cardX, 700, 'shopCard')
+                    .setInteractive()
+                    .setScale(0.6);
+                    
+                // Добавляем спрайт юнита на карточку
+                const unitSprite = this.add.image(cardX, 700, unitData.name.toLowerCase());
+                unitSprite.setScale(0.3);
+                
+                // Добавляем текст стоимости
+                this.add.text(cardX, 720, `${unitData.cost}`, {
+                    fontSize: '16px',
+                    fill: '#FFD700',
+                    fontFamily: 'Arial'
+                }).setOrigin(0.5);
+                
+                // Добавляем обработчик клика
+                card.on('pointerdown', () => {
+                    this.onShopCardClick(unitType, unitData);
                 });
-
-            // Иконка юнита (простой квадрат/круг)
-            if (type === 'ARCHER') {
-                this.add.circle(x, shopY - 20, 15, unitData.color);
-            } else if (type === 'WARRIOR') {
-                this.add.rectangle(x, shopY - 20, 20, 30, unitData.color);
-            } else if (type === 'MAGE') {
-                this.add.rectangle(x, shopY - 20, 25, 25, unitData.color);
+                
+                this.shopCards.push({ card, unitType, unitData });
             }
-
-            // Название и стоимость
-            this.add.text(x, shopY + 20, unitData.name, {
-                fontSize: '12px',
-                fill: '#ffffff',
-                fontStyle: 'bold'
-            }).setOrigin(0.5);
-
-            this.add.text(x, shopY + 35, `${unitData.cost} монет`, {
-                fontSize: '10px',
-                fill: '#FFD700'
-            }).setOrigin(0.5);
-
-            // Эффект при наведении
-            card.on('pointerover', () => {
-                card.setFillStyle(unitData.color + 0x333333);
-            });
-
-            card.on('pointerout', () => {
-                card.setFillStyle(unitData.color);
-            });
         });
     }
 
-    selectUnit(unitType) {
-        if (this.isBattleActive) return;
-        
-        const unitData = window.gameConfig.UNIT_TYPES[unitType];
-        
-        if (this.economySystem.canAfford(unitData.cost)) {
-            // Создаем временный юнит для размещения
-            this.selectedUnitType = unitType;
-            this.selectedUnitData = unitData;
-            
-            // Включаем режим размещения
-            this.input.on('pointerdown', this.onGridClick, this);
-            
-            console.log(`Выбран ${unitData.name} за ${unitData.cost} монет`);
+    onShopCardClick(unitType, unitData) {
+        if (this.coins >= unitData.cost) {
+            console.log(`Покупка ${unitData.name} за ${unitData.cost} монет`);
+            // Здесь будет логика покупки и размещения юнита
         } else {
             console.log('Недостаточно монет!');
         }
     }
 
-    onGridClick(pointer) {
-        if (!this.selectedUnitType) return;
-        
-        const gridPos = this.gridSystem.getGridPosition(pointer.x, pointer.y);
-        
-        if (this.gridSystem.canPlaceUnit(gridPos.x, gridPos.y, this.selectedUnitData.size)) {
-            // Размещаем юнит
-            this.placeUnit(this.selectedUnitType, gridPos.x, gridPos.y);
-            
-            // Снимаем с баланса
-            this.economySystem.spendCoins(this.selectedUnitData.cost);
-            this.updateCoinsDisplay();
-            
-            // Отключаем режим размещения
-            this.selectedUnitType = null;
-            this.selectedUnitData = null;
-            this.input.off('pointerdown', this.onGridClick, this);
-        }
-    }
-
-    placeUnit(unitType, gridX, gridY) {
-        let unit;
-        
-        switch (unitType) {
-            case 'ARCHER':
-                unit = new Archer(this, gridX, gridY);
-                break;
-            case 'WARRIOR':
-                unit = new Warrior(this, gridX, gridY);
-                break;
-            case 'MAGE':
-                unit = new Mage(this, gridX, gridY);
-                break;
-        }
-        
-        if (unit) {
-            this.playerUnits.push(unit);
-            this.gridSystem.placeUnit(gridX, gridY, unit);
-            console.log(`Размещен ${unitType} в позиции (${gridX}, ${gridY})`);
-        }
-    }
-
     startBattle() {
-        if (this.isBattleActive) return;
-        
-        this.isBattleActive = true;
-        this.fightButton.setFillStyle(0x666666);
-        this.fightButton.disableInteractive();
-        
-        // Спавним вражеских юнитов
-        this.spawnEnemies();
-        
-        // Запускаем боевую систему
-        this.battleSystem.startBattle(this.playerUnits, this.enemyUnits);
-        
-        console.log('Бой начался!');
+        console.log('Начинаем бой!');
+        this.battleSystem.startBattle();
     }
 
-    spawnEnemies() {
-        // Простой спавн врагов - случайные юниты в верхней части поля
-        const { GRID_WIDTH, ENEMY_AREA_HEIGHT } = window.gameConfig;
-        
-        for (let i = 0; i < 3; i++) {
-            const x = Phaser.Math.Between(0, GRID_WIDTH - 1);
-            const y = Phaser.Math.Between(0, ENEMY_AREA_HEIGHT - 1);
-            
-            // Создаем вражеского лучника (пока только один тип)
-            const enemy = new Archer(this, x, y, true); // true = враг
-            this.enemyUnits.push(enemy);
-            this.gridSystem.placeUnit(x, y, enemy);
+    update() {
+        // Обновляем системы
+        if (this.battleSystem) {
+            this.battleSystem.update();
         }
-    }
-
-    updateCoinsDisplay() {
-        this.coinsText.setText(`Монеты: ${this.economySystem.getCoins()}`);
-    }
-
-    endBattle(victory) {
-        this.isBattleActive = false;
-        this.fightButton.setFillStyle(0xE24A4A);
-        this.fightButton.setInteractive();
-        
-        if (victory) {
-            const reward = Phaser.Math.Between(5, 8);
-            this.economySystem.addCoins(reward);
-            this.updateCoinsDisplay();
-            console.log(`Победа! Получено ${reward} монет`);
-        } else {
-            console.log('Поражение!');
-        }
-        
-        // Очищаем поле от мертвых юнитов
-        this.cleanupDeadUnits();
-    }
-
-    cleanupDeadUnits() {
-        // Удаляем мертвых юнитов
-        this.playerUnits = this.playerUnits.filter(unit => unit.isAlive());
-        this.enemyUnits = this.enemyUnits.filter(unit => unit.isAlive());
-        
-        // Очищаем сетку
-        this.gridSystem.clearDeadUnits();
     }
 }

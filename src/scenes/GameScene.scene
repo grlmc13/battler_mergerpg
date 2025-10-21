@@ -1,0 +1,33 @@
+{
+  "sceneType": "Scene",
+  "sceneKey": "GameScene",
+  "sceneClass": "GameScene",
+  "sceneFile": "GameScene.js",
+  "sceneData": {
+    "width": 480,
+    "height": 800,
+    "backgroundColor": "#16213e",
+    "camera": {
+      "x": 240,
+      "y": 400,
+      "zoom": 1
+    },
+    "children": [
+      {
+        "type": "Container",
+        "name": "GameContainer",
+        "x": 240,
+        "y": 400,
+        "children": []
+      },
+      {
+        "type": "Container", 
+        "name": "UIContainer",
+        "x": 240,
+        "y": 400,
+        "children": []
+      }
+    ]
+  }
+}
+

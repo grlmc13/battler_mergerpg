@@ -35,6 +35,14 @@ window.gameConfig = {
     STARTING_COINS: 10,         // Стартовый капитал в раунде 1
     ROUND_COINS: 10,             // Монеты в каждом последующем раунде (2, 3, 4, 5...)
     
+    // PvE Wave Mode Configuration
+    PVE_WAVES: {
+        TOTAL_WAVES: 5,           // Общее количество волн
+        STARTING_COINS: 10,       // Монеты на старте каждой волны
+        WAVE_REWARD: 10,          // Награда за прохождение волны
+        DIFFICULTY_SCALING: 1.2   // Множитель сложности для каждой волны
+    },
+    
     // Типы юнитов и их характеристики
     UNIT_TYPES: {
         ARCHER: {
@@ -168,6 +176,20 @@ window.gameConfig = {
             sellPrice: 6,              // Базовая цена продажи
             sellPricePerStar: 6,       // Дополнительная цена за каждую звезду мерджа
             color: 0x4B0082
+        },
+        BOSS: {
+            name: 'Босс',
+            size: { width: 3, height: 3 },
+            cost: 0,  // Не покупается
+            hp: 300,
+            damage: 25,
+            attackSpeed: 2.0,
+            range: 10,
+            hasAreaDamage: true,
+            areaDamageTargets: 3,
+            sellPrice: 0,
+            sellPricePerStar: 0,
+            color: 0x8B0000
         }
     }
 };
@@ -584,6 +606,20 @@ class GridSystem {
         if (unit.hpBarBg) {
             unit.hpBarBg.destroy();
             unit.hpBarBg = null;
+        }
+    }
+    
+    clearEnemyArea() {
+        // Очищаем только вражескую область (нижние 6 рядов)
+        const { ENEMY_AREA_HEIGHT } = window.gameConfig;
+        const playerAreaHeight = this.gridHeight - ENEMY_AREA_HEIGHT;
+        
+        for (let y = playerAreaHeight; y < this.gridHeight; y++) {
+            for (let x = 0; x < this.gridWidth; x++) {
+                if (this.grid[y][x]) {
+                    this.grid[y][x] = null;
+                }
+            }
         }
     }
 
@@ -2307,6 +2343,7 @@ class GameScene extends Phaser.Scene {
     constructor() {
         super({ key: 'GameScene' });
         
+        this.gameMode = 'pvp'; // По умолчанию PvP режим
         this.gridSystem = null;
         this.battleSystem = null;
         this.economySystem = null;
@@ -2357,6 +2394,12 @@ class GameScene extends Phaser.Scene {
         this.resultsText = null;
         
         console.log('=== ИГРА СБРОШЕНА ===');
+    }
+
+    init(data) {
+        // Получаем режим игры из MenuScene
+        this.gameMode = data?.mode || 'pvp';
+        console.log('Game mode:', this.gameMode);
     }
 
     preload() {
@@ -4210,6 +4253,380 @@ class MenuScene extends Phaser.Scene {
     }
 }
 
+// Boss Unit Class
+class Boss extends Unit {
+    constructor(scene, x, y) {
+        super(scene, x, y);
+        this.unitType = 'BOSS';
+        this.maxHp = 300;
+        this.hp = this.maxHp;
+        this.damage = 25;
+        this.attackSpeed = 2.0;
+        this.baseAttackSpeed = 2.0;
+        this.range = 10;
+        this.hasAreaDamage = true;
+        this.areaDamageTargets = 3;
+        
+        this.baseHp = this.maxHp;
+        this.baseDamage = this.damage;
+        
+        this.updateVisuals();
+    }
+    
+    getSize() {
+        return { width: 3, height: 3 };
+    }
+    
+    updateVisuals() {
+        if (this.visual) {
+            this.visual.destroy();
+        }
+        
+        const size = this.getSize();
+        const width = size.width * this.scene.gridSystem.cellSize;
+        const height = size.height * this.scene.gridSystem.cellSize;
+        
+        this.visual = this.scene.add.rectangle(0, 0, width, height, 0x8B0000);
+        this.visual.setStrokeStyle(3, 0xFF0000);
+        this.add(this.visual);
+        
+        // Текст "BOSS"
+        this.bossText = this.scene.add.text(0, 0, 'BOSS', {
+            fontSize: '12px',
+            fill: '#FFFFFF',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+        this.add(this.bossText);
+    }
+    
+    attack(target) {
+        if (!target || !target.isAlive()) return;
+        
+        // Обычная атака
+        target.takeDamage(this.damage);
+        
+        // Area damage - атакуем дополнительных целей
+        if (this.hasAreaDamage) {
+            const nearbyTargets = this.scene.playerUnits
+                .filter(unit => unit !== target && unit.isAlive())
+                .filter(unit => {
+                    const distance = Phaser.Math.Distance.Between(
+                        this.x, this.y, unit.x, unit.y
+                    );
+                    return distance <= this.range * this.scene.gridSystem.cellSize;
+                })
+                .slice(0, this.areaDamageTargets - 1);
+                
+            nearbyTargets.forEach(unit => {
+                unit.takeDamage(Math.floor(this.damage * 0.5)); // 50% урона от area damage
+            });
+        }
+    }
+}
+
+// PvE Wave Mode Scene
+class GameScenePvE extends GameScene {
+    constructor() {
+        super();
+        this.currentWave = 1;
+        this.totalWaves = window.gameConfig.PVE_WAVES.TOTAL_WAVES;
+        this.isGameOver = false;
+        this.waveText = null;
+        this.nextWaveButton = null;
+        this.victoryScreen = null;
+        this.defeatScreen = null;
+    }
+
+    init(data) {
+        super.init(data);
+        this.gameMode = 'pve';
+        console.log('PvE Wave Mode initialized');
+    }
+
+    create() {
+        super.create();
+        
+        // Скрываем PvP элементы
+        if (this.roundText) {
+            this.roundText.setVisible(false);
+        }
+        if (this.resultsText) {
+            this.resultsText.setVisible(false);
+        }
+        
+        // Создаем PvE UI
+        this.createPvEUI();
+        
+        // Генерируем первую волну
+        this.generateWaveEnemies(this.currentWave);
+    }
+
+    createPvEUI() {
+        const { GRID_HEIGHT } = window.gameConfig;
+        const fieldHeight = GRID_HEIGHT * this.gridSystem.cellSize;
+        
+        // Текст волны
+        this.waveText = this.add.text(400, 50, `ВОЛНА ${this.currentWave}/${this.totalWaves}`, {
+            fontSize: '24px',
+            fill: '#FFD700',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+        
+        // Кнопка "Следующая волна" (скрыта изначально)
+        this.nextWaveButton = this.add.rectangle(400, fieldHeight + 100, 200, 50, 0x4A90E2)
+            .setInteractive()
+            .setVisible(false)
+            .on('pointerdown', () => {
+                this.prepareNextWave();
+            });
+            
+        this.add.text(400, fieldHeight + 100, 'СЛЕДУЮЩАЯ ВОЛНА', {
+            fontSize: '16px',
+            fill: '#ffffff',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+    }
+
+    generateWaveEnemies(waveNumber) {
+        console.log(`=== ГЕНЕРАЦИЯ ВОЛНЫ ${waveNumber} ===`);
+        
+        // Очищаем старых врагов
+        this.enemyUnits.forEach(unit => unit.destroy());
+        this.enemyUnits = [];
+        this.gridSystem.clearEnemyArea();
+        
+        const { PVE_WAVES } = window.gameConfig;
+        const difficultyMultiplier = Math.pow(PVE_WAVES.DIFFICULTY_SCALING, waveNumber - 1);
+        
+        if (waveNumber === this.totalWaves) {
+            // Финальная волна с боссом
+            this.generateBossWave();
+        } else {
+            // Обычные волны
+            this.generateRegularWave(waveNumber, difficultyMultiplier);
+        }
+        
+        console.log(`Врагов создано: ${this.enemyUnits.length}`);
+    }
+
+    generateBossWave() {
+        console.log('Создаем финальную волну с боссом');
+        
+        // Босс 3x3 в центре
+        const boss = this.createEnemyUnit('BOSS', 2, 0); // gridX: 2-4, gridY: 0-2
+        if (boss) {
+            this.enemyUnits.push(boss);
+            this.gridSystem.placeUnit(2, 0, boss);
+        }
+        
+        // 2-3 сильных обычных юнита по бокам
+        const sideUnits = ['TANK', 'MAGE', 'WITCH'];
+        const positions = [
+            { x: 0, y: 2 },
+            { x: 5, y: 2 },
+            { x: 1, y: 4 }
+        ];
+        
+        for (let i = 0; i < Math.min(3, positions.length); i++) {
+            const unitType = sideUnits[i];
+            const pos = positions[i];
+            const unit = this.createEnemyUnit(unitType, pos.x, pos.y);
+            if (unit) {
+                this.enemyUnits.push(unit);
+                this.gridSystem.placeUnit(pos.x, pos.y, unit);
+            }
+        }
+    }
+
+    generateRegularWave(waveNumber, difficultyMultiplier) {
+        const unitTypes = ['ARCHER', 'WARRIOR', 'BARBARIAN', 'HEALER', 'MAGE', 'TANK', 'ASSASSIN', 'DRUID', 'WITCH'];
+        const numEnemies = Math.min(3 + waveNumber, 5); // 3-5 врагов в зависимости от волны
+        
+        const positions = [];
+        for (let y = 0; y < 6; y++) {
+            for (let x = 0; x < 8; x++) {
+                positions.push({ x, y });
+            }
+        }
+        
+        // Перемешиваем позиции
+        Phaser.Utils.Array.Shuffle(positions);
+        
+        for (let i = 0; i < numEnemies; i++) {
+            const unitType = Phaser.Utils.Array.GetRandom(unitTypes);
+            const pos = positions[i];
+            
+            const unit = this.createEnemyUnit(unitType, pos.x, pos.y);
+            if (unit) {
+                // Увеличиваем характеристики в зависимости от сложности
+                unit.maxHp = Math.floor(unit.maxHp * difficultyMultiplier);
+                unit.hp = unit.maxHp;
+                unit.damage = Math.floor(unit.damage * difficultyMultiplier);
+                
+                this.enemyUnits.push(unit);
+                this.gridSystem.placeUnit(pos.x, pos.y, unit);
+            }
+        }
+    }
+
+    createEnemyUnit(unitType, gridX, gridY) {
+        const unitData = window.gameConfig.UNIT_TYPES[unitType];
+        if (!unitData) return null;
+        
+        // Проверяем, можно ли разместить
+        if (!this.gridSystem.canPlaceEnemyUnit(gridX, gridY, unitData.size)) {
+            return null;
+        }
+        
+        let unit;
+        switch (unitType) {
+            case 'ARCHER':
+                unit = new Archer(this, 0, 0);
+                break;
+            case 'WARRIOR':
+                unit = new Warrior(this, 0, 0);
+                break;
+            case 'BARBARIAN':
+                unit = new Barbarian(this, 0, 0);
+                break;
+            case 'HEALER':
+                unit = new Healer(this, 0, 0);
+                break;
+            case 'MAGE':
+                unit = new Mage(this, 0, 0);
+                break;
+            case 'TANK':
+                unit = new Tank(this, 0, 0);
+                break;
+            case 'ASSASSIN':
+                unit = new Assassin(this, 0, 0);
+                break;
+            case 'DRUID':
+                unit = new Druid(this, 0, 0);
+                break;
+            case 'WITCH':
+                unit = new Witch(this, 0, 0);
+                break;
+            case 'BOSS':
+                unit = new Boss(this, 0, 0);
+                break;
+        }
+        
+        return unit;
+    }
+
+    prepareNextWave() {
+        if (this.isGameOver) return;
+        
+        // Воскрешаем всех убитых юнитов
+        this.resurrectUnits();
+        
+        // Переходим к следующей волне
+        this.currentWave++;
+        
+        if (this.currentWave > this.totalWaves) {
+            // Победа!
+            this.showVictoryScreen();
+            return;
+        }
+        
+        // Обновляем UI
+        this.waveText.setText(`ВОЛНА ${this.currentWave}/${this.totalWaves}`);
+        this.nextWaveButton.setVisible(false);
+        
+        // Даем монеты за новую волну
+        const { PVE_WAVES } = window.gameConfig;
+        this.economySystem.addCoins(PVE_WAVES.WAVE_REWARD);
+        this.updateCoinsDisplay();
+        
+        // Перегенерируем магазин
+        this.generateShopUnits();
+        const { GRID_HEIGHT } = window.gameConfig;
+        const fieldHeight = GRID_HEIGHT * this.gridSystem.cellSize;
+        const shopY = fieldHeight + 250;
+        const { startX, cardSpacing, cardWidth } = this.calculateShopPositions();
+        this.createShopCards(shopY, startX, cardSpacing, cardWidth);
+        
+        // Генерируем новую волну врагов
+        this.generateWaveEnemies(this.currentWave);
+        
+        console.log(`=== НАЧАЛО ВОЛНЫ ${this.currentWave} ===`);
+    }
+
+    endBattle(victory) {
+        if (this.isGameOver) return;
+        
+        this.isBattleActive = false;
+        this.fightButton.setFillStyle(0xE24A4A);
+        
+        if (victory) {
+            console.log(`Победа на волне ${this.currentWave}!`);
+            this.nextWaveButton.setVisible(true);
+        } else {
+            console.log('Поражение! Все юниты погибли.');
+            this.showDefeatScreen();
+        }
+    }
+
+    showVictoryScreen() {
+        this.isGameOver = true;
+        
+        this.victoryScreen = this.add.rectangle(400, 700, 600, 300, 0x000000, 0.8);
+        
+        this.add.text(400, 600, 'ПОБЕДА!', {
+            fontSize: '48px',
+            fill: '#FFD700',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+        
+        this.add.text(400, 650, 'Вы прошли все волны!', {
+            fontSize: '24px',
+            fill: '#ffffff'
+        }).setOrigin(0.5);
+        
+        const menuButton = this.add.rectangle(400, 750, 200, 50, 0x4A90E2)
+            .setInteractive()
+            .on('pointerdown', () => {
+                this.scene.start('MenuScene');
+            });
+            
+        this.add.text(400, 750, 'ВЕРНУТЬСЯ В МЕНЮ', {
+            fontSize: '16px',
+            fill: '#ffffff',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+    }
+
+    showDefeatScreen() {
+        this.isGameOver = true;
+        
+        this.defeatScreen = this.add.rectangle(400, 700, 600, 300, 0x000000, 0.8);
+        
+        this.add.text(400, 600, 'ПОРАЖЕНИЕ', {
+            fontSize: '48px',
+            fill: '#E24A4A',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+        
+        this.add.text(400, 650, 'Все ваши юниты погибли!', {
+            fontSize: '24px',
+            fill: '#ffffff'
+        }).setOrigin(0.5);
+        
+        const menuButton = this.add.rectangle(400, 750, 200, 50, 0x4A90E2)
+            .setInteractive()
+            .on('pointerdown', () => {
+                this.scene.start('MenuScene');
+            });
+            
+        this.add.text(400, 750, 'ВЕРНУТЬСЯ В МЕНЮ', {
+            fontSize: '16px',
+            fill: '#ffffff',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+    }
+}
+
 // Конфигурация Phaser
 const config = {
     type: Phaser.AUTO,
@@ -4236,7 +4653,7 @@ const config = {
             debug: false
         }
     },
-    scene: [MenuScene, GameScene]
+    scene: [MenuScene, GameScene, GameScenePvE]
 };
 
 // Запуск игры

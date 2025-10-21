@@ -1,0 +1,126 @@
+{
+  "sceneType": "Scene",
+  "sceneKey": "GameScene2",
+  "sceneClass": "GameScene",
+  "sceneFile": "GameScene.js",
+  "sceneData": {
+    "width": 480,
+    "height": 800,
+    "backgroundColor": "#16213e",
+    "camera": {
+      "x": 240,
+      "y": 400,
+      "zoom": 1
+    },
+    "children": [
+      {
+        "type": "Container",
+        "name": "GameContainer",
+        "x": 240,
+        "y": 300,
+        "children": [
+          {
+            "type": "Rectangle",
+            "name": "GameField",
+            "x": 0,
+            "y": 0,
+            "width": 400,
+            "height": 300,
+            "fillColor": "#2a2a2a",
+            "strokeColor": "#444444",
+            "strokeWidth": 2
+          }
+        ]
+      },
+      {
+        "type": "Container",
+        "name": "UIContainer",
+        "x": 240,
+        "y": 700,
+        "children": [
+          {
+            "type": "Rectangle",
+            "name": "ShopPanel",
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 100,
+            "fillColor": "#1a1a2a",
+            "strokeColor": "#333333",
+            "strokeWidth": 1
+          },
+          {
+            "type": "Rectangle",
+            "name": "FightButton",
+            "x": 150,
+            "y": 0,
+            "width": 100,
+            "height": 40,
+            "fillColor": "#4a90e2",
+            "strokeColor": "#2a5a9e",
+            "strokeWidth": 2
+          },
+          {
+            "type": "Text",
+            "name": "FightText",
+            "x": 150,
+            "y": 0,
+            "text": "Fight",
+            "fontSize": 20,
+            "color": "#ffffff",
+            "fontFamily": "Arial"
+          },
+          {
+            "type": "Text",
+            "name": "CoinText",
+            "x": -200,
+            "y": 0,
+            "text": "Монеты: 10",
+            "fontSize": 16,
+            "color": "#FFD700",
+            "fontFamily": "Arial"
+          }
+        ]
+      },
+      {
+        "type": "Container",
+        "name": "PlayerArea",
+        "x": 240,
+        "y": 200,
+        "children": [
+          {
+            "type": "Rectangle",
+            "name": "PlayerField",
+            "x": 0,
+            "y": 0,
+            "width": 400,
+            "height": 150,
+            "fillColor": "#1a2a3a",
+            "strokeColor": "#2a4a6a",
+            "strokeWidth": 2
+          }
+        ]
+      },
+      {
+        "type": "Container",
+        "name": "EnemyArea",
+        "x": 240,
+        "y": 400,
+        "children": [
+          {
+            "type": "Rectangle",
+            "name": "EnemyField",
+            "x": 0,
+            "y": 0,
+            "width": 400,
+            "height": 150,
+            "fillColor": "#3a1a1a",
+            "strokeColor": "#6a2a2a",
+            "strokeWidth": 2
+          }
+        ]
+      }
+    ]
+  }
+}
+

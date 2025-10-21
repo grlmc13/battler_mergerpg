@@ -1,0 +1,37 @@
+{
+  "meta": {
+    "app": "Phaser Editor v4.11.2",
+    "url": "https://phasereditor2d.com",
+    "contentType": "phasereditor2d.core.scene.SceneAssetPackContentType",
+    "version": "4.11.2"
+  },
+  "scenes": [
+    {
+      "sceneKey": "MenuScene",
+      "sceneFile": "MenuScene.js",
+      "sceneData": "MenuScene.scene"
+    },
+    {
+      "sceneKey": "GameScene", 
+      "sceneFile": "GameScene.js",
+      "sceneData": "GameScene.scene"
+    },
+    {
+      "sceneKey": "GameScene2", 
+      "sceneFile": "GameScene.js",
+      "sceneData": "GameScene2.scene"
+    }
+  ],
+  "assets": {
+    "sprites": {
+      "path": "src/assets/sprites",
+      "atlas": "src/assets/atlases"
+    },
+    "sounds": {
+      "path": "src/assets/sounds"
+    },
+    "fonts": {
+      "path": "src/assets/fonts"
+    }
+  }
+}

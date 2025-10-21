@@ -1,0 +1,26 @@
+{
+  "sceneType": "Scene",
+  "sceneKey": "MenuScene", 
+  "sceneClass": "MenuScene",
+  "sceneFile": "MenuScene.js",
+  "sceneData": {
+    "width": 480,
+    "height": 800,
+    "backgroundColor": "#16213e",
+    "camera": {
+      "x": 240,
+      "y": 400,
+      "zoom": 1
+    },
+    "children": [
+      {
+        "type": "Container",
+        "name": "MenuContainer",
+        "x": 240,
+        "y": 400,
+        "children": []
+      }
+    ]
+  }
+}
+

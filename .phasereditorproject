@@ -1,0 +1,28 @@
+{
+  "version": "4.11.2",
+  "projectName": "MergePrototype",
+  "projectPath": ".",
+  "assetsPath": "src/assets",
+  "scenesPath": "src/scenes",
+  "scriptsPath": "src",
+  "buildPath": "dist",
+  "entryPoint": "src/main-editor.js",
+  "htmlTemplate": "index-editor.html",
+  "scenes": [
+    {
+      "sceneKey": "MenuScene",
+      "sceneFile": "MenuScene.js",
+      "sceneData": "MenuScene.scene"
+    },
+    {
+      "sceneKey": "GameScene", 
+      "sceneFile": "GameScene.js",
+      "sceneData": "GameScene.scene"
+    },
+    {
+      "sceneKey": "GameScene2", 
+      "sceneFile": "GameScene.js",
+      "sceneData": "GameScene2.scene"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "version": "3.55.2",
+  "projectName": "MergePrototype",
+  "projectPath": "D:/Work/MergePrototype",
+  "assetsPath": "src/assets",
+  "scenesPath": "src/scenes",
+  "scriptsPath": "src",
+  "buildPath": "dist",
+  "entryPoint": "src/game.js",
+  "htmlTemplate": "index.html",
+  "scenes": [
+    {
+      "name": "MenuScene",
+      "file": "src/scenes/MenuScene.js",
+      "type": "scene"
+    },
+    {
+      "name": "GameScene", 
+      "file": "src/scenes/GameScene.js",
+      "type": "scene"
+    }
+  ],
+  "assets": {
+    "sprites": {
+      "path": "src/assets/sprites",
+      "atlas": "src/assets/atlases"
+    },
+    "sounds": {
+      "path": "src/assets/sounds"
+    },
+    "fonts": {
+      "path": "src/assets/fonts"
+    }
+  },
+  "build": {
+    "minify": true,
+    "sourceMaps": true,
+    "target": "web"
+  }
+}
