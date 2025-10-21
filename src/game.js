@@ -4327,7 +4327,7 @@ class Boss extends Unit {
 // PvE Wave Mode Scene
 class GameScenePvE extends GameScene {
     constructor() {
-        super();
+        super({ key: 'GameScenePvE' });
         this.currentWave = 1;
         this.totalWaves = window.gameConfig.PVE_WAVES.TOTAL_WAVES;
         this.isGameOver = false;
