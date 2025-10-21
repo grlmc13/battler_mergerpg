@@ -3718,6 +3718,13 @@ class GameScene extends Phaser.Scene {
     onDragEnd(pointer, unitType, cardIndex) {
         if (!this.isDragging) return;
         
+        // Проверяем, хватает ли монет для покупки
+        if (!this.economySystem.canAfford(this.selectedUnitData.cost)) {
+            console.log('Недостаточно монет для покупки', this.selectedUnitData.name);
+            this.isDragging = false;
+            return;
+        }
+        
         // Удаляем призрак и подсветку
         this.dragGhostElements.forEach(elem => elem.destroy());
         this.dragGhostElements = [];
