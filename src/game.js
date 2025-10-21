@@ -40,7 +40,7 @@ window.gameConfig = {
         ARCHER: {
             name: 'Лучник',
             size: { width: 1, height: 1 },
-            cost: 0,
+            cost: 2,
             hp: 30,
             damage: 8,
             attackSpeed: 0.5,          // Очень быстрая атака
@@ -52,7 +52,7 @@ window.gameConfig = {
         WARRIOR: {
             name: 'Мечник',
             size: { width: 1, height: 2 },
-            cost: 0,
+            cost: 3,
             hp: 50,
             damage: 12,
             attackSpeed: 1.0,
@@ -66,7 +66,7 @@ window.gameConfig = {
         BARBARIAN: {
             name: 'Варвар',
             size: { width: 2, height: 1 },
-            cost: 0,
+            cost: 4,
             hp: 60,
             damage: 15,
             attackSpeed: 1.5,
@@ -79,7 +79,7 @@ window.gameConfig = {
         HEALER: {
             name: 'Лекарь',
             size: { width: 1, height: 1 },
-            cost: 0,
+            cost: 3,
             hp: 25,
             damage: 3,
             attackSpeed: 2.0, // Возвращаем исходное значение
@@ -93,7 +93,7 @@ window.gameConfig = {
         MAGE: {
             name: 'Маг',
             size: { width: 2, height: 2 },
-            cost: 0,
+            cost: 5,
             hp: 40,
             damage: 8, // Меньше урона, но бьет по 3 целям
             attackSpeed: 2.5, // Медленнее атакует
@@ -105,8 +105,8 @@ window.gameConfig = {
         },
         TANK: {
             name: 'Танк',
-            size: { width: 3, height: 2 },
-            cost: 0,
+            size: { width: 2, height: 2 },
+            cost: 5,
             hp: 80,
             damage: 10,
             attackSpeed: 2.0,
