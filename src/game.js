@@ -2400,6 +2400,15 @@ class GameScene extends Phaser.Scene {
         // Получаем режим игры из MenuScene
         this.gameMode = data?.mode || 'pvp';
         console.log('Game mode:', this.gameMode);
+        
+        // PvE специфичные свойства
+        if (this.gameMode === 'pve') {
+            this.currentWave = 1;
+            this.totalWaves = 5;
+            this.isGameOver = false;
+            this.waveText = null;
+            this.nextWaveButton = null;
+        }
     }
 
     preload() {
@@ -2436,6 +2445,11 @@ class GameScene extends Phaser.Scene {
         this.createUI();
         this.createShop();
         this.createRoundDisplay();
+        
+        // PvE специфичный UI
+        if (this.gameMode === 'pve') {
+            this.createPvEUI();
+        }
         
         // Глобальный обработчик кликов по полю для размещения юнитов
         this.input.on('pointerdown', this.handleFieldClick, this);
@@ -4201,6 +4215,17 @@ class GameScene extends Phaser.Scene {
         this.isDraggingFromField = false;
         this.draggedUnit = null;
     }
+
+    createPvEUI() {
+        // Простой PvE UI - пока что просто заглушка
+        this.waveText = this.add.text(400, 50, `ВОЛНА ${this.currentWave}/${this.totalWaves}`, {
+            fontSize: '24px',
+            fill: '#FFD700',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+        
+        console.log('PvE UI создан');
+    }
 }
 
 // Стартовое меню
@@ -4225,30 +4250,51 @@ class MenuScene extends Phaser.Scene {
             fill: '#cccccc'
         }).setOrigin(0.5);
 
-        const startButton = this.add.rectangle(centerX, centerY + 20, 250, 60, 0x4A90E2)
+        // Кнопка PvP режима
+        const pvpButton = this.add.rectangle(centerX, centerY + 20, 250, 60, 0x4A90E2)
             .setInteractive()
             .on('pointerdown', () => {
-                this.scene.start('GameScene');
+                this.scene.start('GameScene', { mode: 'pvp' });
             });
 
-        this.add.text(centerX, centerY + 20, 'НАЧАТЬ ИГРУ', {
+        this.add.text(centerX, centerY + 20, 'PvP Mode', {
             fontSize: '20px',
             fill: '#ffffff',
             fontStyle: 'bold'
         }).setOrigin(0.5);
 
-        this.add.text(centerX, centerY + 100, 'Размещайте юнитов на поле\nи сражайтесь с врагами!', {
+        // Кнопка PvE режима
+        const pveButton = this.add.rectangle(centerX, centerY + 100, 250, 60, 0xE24A4A)
+            .setInteractive()
+            .on('pointerdown', () => {
+                this.scene.start('GameScene', { mode: 'pve' });
+            });
+
+        this.add.text(centerX, centerY + 100, 'PvE Waves', {
+            fontSize: '20px',
+            fill: '#ffffff',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+
+        this.add.text(centerX, centerY + 180, 'Выберите режим игры', {
             fontSize: '16px',
             fill: '#aaaaaa',
             align: 'center'
         }).setOrigin(0.5);
 
-        startButton.on('pointerover', () => {
-            startButton.setFillStyle(0x5BA0F2);
+        // Hover эффекты
+        pvpButton.on('pointerover', () => {
+            pvpButton.setFillStyle(0x5BA0F2);
+        });
+        pvpButton.on('pointerout', () => {
+            pvpButton.setFillStyle(0x4A90E2);
         });
 
-        startButton.on('pointerout', () => {
-            startButton.setFillStyle(0x4A90E2);
+        pveButton.on('pointerover', () => {
+            pveButton.setFillStyle(0xF25A5A);
+        });
+        pveButton.on('pointerout', () => {
+            pveButton.setFillStyle(0xE24A4A);
         });
     }
 }
