@@ -2686,24 +2686,24 @@ class GameScene extends Phaser.Scene {
             const card = this.add.rectangle(x, shopY, cardWidth, 100, canAfford ? unitData.color : 0x666666)
                 .setInteractive({ draggable: canAfford })
                 .on('pointerdown', () => {
-                    if (canAfford) {
+                    if (this.economySystem.canAfford(unitData.cost)) {
                         this.selectUnit(type, index);
                     } else {
                         console.log('Недостаточно монет для покупки', unitData.name);
                     }
                 })
                 .on('dragstart', (pointer, dragX, dragY) => {
-                    if (canAfford) {
+                    if (this.economySystem.canAfford(unitData.cost)) {
                         this.onDragStart(type, index, pointer);
                     }
                 })
                 .on('drag', (pointer, dragX, dragY) => {
-                    if (canAfford) {
+                    if (this.economySystem.canAfford(unitData.cost)) {
                         this.onDrag(pointer, dragX, dragY);
                     }
                 })
                 .on('dragend', (pointer) => {
-                    if (canAfford) {
+                    if (this.economySystem.canAfford(unitData.cost)) {
                         this.onDragEnd(pointer, type, index);
                     }
                 });
@@ -3018,6 +3018,12 @@ class GameScene extends Phaser.Scene {
                 }
             } else {
                 // ОБЫЧНОЕ РАЗМЕЩЕНИЕ
+                // Проверяем, хватает ли монет
+                if (!this.economySystem.canAfford(this.selectedUnitData.cost)) {
+                    console.log('Недостаточно монет для покупки', this.selectedUnitData.name);
+                    return;
+                }
+                
                 console.log('Размещаем юнит в позиции:', gridPos);
                 this.placeUnit(this.selectedUnitType, gridPos.x, gridPos.y);
                 // Списываем монеты за покупку
@@ -3235,6 +3241,31 @@ class GameScene extends Phaser.Scene {
                 if (cardData.card) {
                     cardData.card.setFillStyle(newColor);
                     cardData.card.setInteractive({ draggable: canAfford });
+                    
+                    // Обновляем обработчики событий с актуальной проверкой
+                    cardData.card.removeAllListeners();
+                    cardData.card.on('pointerdown', () => {
+                        if (this.economySystem.canAfford(cardData.unitData.cost)) {
+                            this.selectUnit(cardData.unitType, index);
+                        } else {
+                            console.log('Недостаточно монет для покупки', cardData.unitData.name);
+                        }
+                    })
+                    .on('dragstart', (pointer, dragX, dragY) => {
+                        if (this.economySystem.canAfford(cardData.unitData.cost)) {
+                            this.onDragStart(cardData.unitType, index, pointer);
+                        }
+                    })
+                    .on('drag', (pointer, dragX, dragY) => {
+                        if (this.economySystem.canAfford(cardData.unitData.cost)) {
+                            this.onDrag(pointer, dragX, dragY);
+                        }
+                    })
+                    .on('dragend', (pointer) => {
+                        if (this.economySystem.canAfford(cardData.unitData.cost)) {
+                            this.onDragEnd(pointer, cardData.unitType, index);
+                        }
+                    });
                 }
             }
         });
@@ -3773,6 +3804,12 @@ class GameScene extends Phaser.Scene {
                 }
             } else {
                 // РАЗМЕЩЕНИЕ - создаем новый юнит
+                // Проверяем, хватает ли монет
+                if (!this.economySystem.canAfford(this.selectedUnitData.cost)) {
+                    console.log('Недостаточно монет для покупки', this.selectedUnitData.name);
+                    return;
+                }
+                
                 console.log('Размещение из магазина:', this.selectedUnitType);
                 this.placeUnit(this.selectedUnitType, gridPos.x, gridPos.y);
                 // Списываем монеты за покупку
