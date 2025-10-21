@@ -2444,11 +2444,15 @@ class GameScene extends Phaser.Scene {
         this.createGameField();
         this.createUI();
         this.createShop();
-        this.createRoundDisplay();
+        // Создаем отображение раундов (только для PvP)
+        if (this.gameMode === 'pvp') {
+            this.createRoundDisplay();
+        }
         
         // PvE специфичный UI
         if (this.gameMode === 'pve') {
             this.createPvEUI();
+            this.generateWaveEnemies(this.currentWave);
         }
         
         // Глобальный обработчик кликов по полю для размещения юнитов
@@ -4225,6 +4229,140 @@ class GameScene extends Phaser.Scene {
         }).setOrigin(0.5);
         
         console.log('PvE UI создан');
+    }
+
+    generateWaveEnemies(waveNumber) {
+        console.log(`=== ГЕНЕРАЦИЯ ВОЛНЫ ${waveNumber} ===`);
+        
+        // Очищаем старых врагов
+        this.enemyUnits.forEach(unit => unit.destroy());
+        this.enemyUnits = [];
+        this.gridSystem.clearEnemyArea();
+        
+        const { PVE_WAVES } = window.gameConfig;
+        const difficultyMultiplier = Math.pow(PVE_WAVES.DIFFICULTY_SCALING, waveNumber - 1);
+        
+        if (waveNumber === this.totalWaves) {
+            // Финальная волна с боссом
+            this.generateBossWave();
+        } else {
+            // Обычные волны
+            this.generateRegularWave(waveNumber, difficultyMultiplier);
+        }
+        
+        console.log(`Врагов создано: ${this.enemyUnits.length}`);
+    }
+
+    generateBossWave() {
+        console.log('Создаем финальную волну с боссом');
+        
+        // Босс 3x3 в центре
+        const boss = this.createEnemyUnit('BOSS', 2, 0); // gridX: 2-4, gridY: 0-2
+        if (boss) {
+            this.enemyUnits.push(boss);
+            this.gridSystem.placeUnit(2, 0, boss);
+        }
+        
+        // 2-3 сильных обычных юнита по бокам
+        const sideUnits = ['TANK', 'MAGE', 'WITCH'];
+        const positions = [
+            { x: 0, y: 2 },
+            { x: 5, y: 2 },
+            { x: 1, y: 4 }
+        ];
+        
+        for (let i = 0; i < Math.min(3, positions.length); i++) {
+            const unitType = sideUnits[i];
+            const pos = positions[i];
+            const unit = this.createEnemyUnit(unitType, pos.x, pos.y);
+            if (unit) {
+                this.enemyUnits.push(unit);
+                this.gridSystem.placeUnit(pos.x, pos.y, unit);
+            }
+        }
+    }
+
+    generateRegularWave(waveNumber, difficultyMultiplier) {
+        const unitTypes = ['ARCHER', 'WARRIOR', 'BARBARIAN', 'HEALER', 'MAGE', 'TANK', 'ASSASSIN', 'DRUID', 'WITCH'];
+        const numEnemies = Math.min(3 + waveNumber, 5); // 3-5 врагов в зависимости от волны
+        
+        const positions = [];
+        for (let y = 0; y < 6; y++) {
+            for (let x = 0; x < 8; x++) {
+                positions.push({ x, y });
+            }
+        }
+        
+        // Перемешиваем позиции
+        Phaser.Utils.Array.Shuffle(positions);
+        
+        for (let i = 0; i < numEnemies; i++) {
+            const unitType = Phaser.Utils.Array.GetRandom(unitTypes);
+            const pos = positions[i];
+            
+            const unit = this.createEnemyUnit(unitType, pos.x, pos.y);
+            if (unit) {
+                // Увеличиваем характеристики в зависимости от сложности
+                unit.maxHp = Math.floor(unit.maxHp * difficultyMultiplier);
+                unit.hp = unit.maxHp;
+                unit.damage = Math.floor(unit.damage * difficultyMultiplier);
+                
+                this.enemyUnits.push(unit);
+                this.gridSystem.placeUnit(pos.x, pos.y, unit);
+            }
+        }
+    }
+
+    createEnemyUnit(unitType, gridX, gridY) {
+        const unitData = window.gameConfig.UNIT_TYPES[unitType];
+        if (!unitData) return null;
+        
+        // Проверяем, можно ли разместить
+        if (!this.gridSystem.canPlaceEnemyUnit(gridX, gridY, unitData.size)) {
+            return null;
+        }
+        
+        let unit;
+        switch (unitType) {
+            case 'ARCHER':
+                unit = new Archer(this, 0, 0);
+                break;
+            case 'WARRIOR':
+                unit = new Warrior(this, 0, 0);
+                break;
+            case 'BARBARIAN':
+                unit = new Barbarian(this, 0, 0);
+                break;
+            case 'HEALER':
+                unit = new Healer(this, 0, 0);
+                break;
+            case 'MAGE':
+                unit = new Mage(this, 0, 0);
+                break;
+            case 'TANK':
+                unit = new Tank(this, 0, 0);
+                break;
+            case 'ASSASSIN':
+                unit = new Assassin(this, 0, 0);
+                break;
+            case 'DRUID':
+                unit = new Druid(this, 0, 0);
+                break;
+            case 'WITCH':
+                unit = new Witch(this, 0, 0);
+                break;
+            case 'BOSS':
+                unit = new Boss(this, 0, 0);
+                break;
+        }
+        
+        if (unit) {
+            // Позиционируем юнит на правильной позиции
+            const worldPos = this.gridSystem.gridToWorld(gridX, gridY);
+            unit.setPosition(worldPos.x, worldPos.y);
+        }
+        
+        return unit;
     }
 }
 
