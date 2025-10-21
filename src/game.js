@@ -4176,4 +4176,5 @@ setTimeout(() => {
     }
 }, 1000);
 
-console.log('Игра загружена!');
+console.log('Игра загружена!');/ /   F o r c e   c a c h e   b u s t  
+ 
