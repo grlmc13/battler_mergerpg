@@ -38,8 +38,8 @@ window.gameConfig = {
     // PvE Wave Mode Configuration
     PVE_WAVES: {
         TOTAL_WAVES: 5,           // Общее количество волн
-        STARTING_COINS: 10,       // Монеты на старте каждой волны
-        WAVE_REWARD: 10,          // Награда за прохождение волны
+        STARTING_COINS: 15,       // Монеты на старте каждой волны
+        WAVE_REWARD: 15,          // Награда за прохождение волны
         DIFFICULTY_SCALING: 1.2   // Множитель сложности для каждой волны
     },
     
@@ -2314,7 +2314,12 @@ class BattleSystem {
 class EconomySystem {
     constructor(scene) {
         this.scene = scene;
-        this.coins = window.gameConfig.STARTING_COINS;
+        // Используем разные стартовые монеты для PvE и PvP
+        if (scene.gameMode === 'pve') {
+            this.coins = window.gameConfig.PVE_WAVES.STARTING_COINS;
+        } else {
+            this.coins = window.gameConfig.STARTING_COINS;
+        }
     }
 
     getCoins() {
@@ -2365,6 +2370,13 @@ class GameScene extends Phaser.Scene {
         this.roundText = null; // Текст с номером раунда
         this.resultsText = null; // Текст с результатами раундов
         
+        // PvE переменные
+        this.currentWave = 1; // Текущая волна
+        this.totalWaves = window.gameConfig.PVE_WAVES.TOTAL_WAVES; // Общее количество волн
+        this.waveText = null; // Текст с номером волны
+        this.waveResultText = null; // Текст с результатом волны
+        this.nextWaveButton = null; // Кнопка следующей волны
+        
         // Drag-and-Drop состояние
         this.isDragging = false;           // Флаг перетаскивания
         this.isDraggingFromField = false;  // Флаг перетаскивания с поля
@@ -2404,9 +2416,10 @@ class GameScene extends Phaser.Scene {
         // PvE специфичные свойства
         if (this.gameMode === 'pve') {
             this.currentWave = 1;
-            this.totalWaves = 5;
+            this.totalWaves = window.gameConfig.PVE_WAVES.TOTAL_WAVES;
             this.isGameOver = false;
             this.waveText = null;
+            this.waveResultText = null;
             this.nextWaveButton = null;
         }
     }
@@ -3166,8 +3179,13 @@ class GameScene extends Phaser.Scene {
         // Скрываем витрину и кнопки во время боя
         this.hideShop();
         
-        console.log('Спавним врагов...');
-        this.spawnEnemies();
+        // Спавним врагов только для PvP режима
+        if (this.gameMode === 'pvp') {
+            console.log('Спавним врагов для PvP...');
+            this.spawnEnemies();
+        } else {
+            console.log('PvE режим - враги уже сгенерированы');
+        }
         
         console.log('Запускаем боевую систему...');
         console.log('Юнитов игрока:', this.playerUnits.length);
@@ -3340,6 +3358,13 @@ class GameScene extends Phaser.Scene {
         // Показываем витрину и кнопки после окончания боя
         this.showShop();
         
+        // PvE режим - обрабатываем волны
+        if (this.gameMode === 'pve') {
+            this.handlePvEBattleEnd(victory);
+            return;
+        }
+        
+        // PvP режим - стандартная логика
         // Сохраняем результат раунда
         this.roundResults.push(victory);
         console.log(`Раунд ${this.currentRound} завершен. Результат: ${victory ? 'Победа' : 'Поражение'}`);
@@ -4221,12 +4246,42 @@ class GameScene extends Phaser.Scene {
     }
 
     createPvEUI() {
-        // Простой PvE UI - пока что просто заглушка
+        // PvE UI с информацией о волнах
         this.waveText = this.add.text(400, 50, `ВОЛНА ${this.currentWave}/${this.totalWaves}`, {
             fontSize: '24px',
             fill: '#FFD700',
             fontStyle: 'bold'
         }).setOrigin(0.5);
+        
+        // Текст с результатом волны
+        this.waveResultText = this.add.text(400, 100, '', {
+            fontSize: '20px',
+            fill: '#FFFFFF',
+            fontStyle: 'bold'
+        }).setOrigin(0.5).setVisible(false);
+        
+        // Кнопка "Следующая волна"
+        this.nextWaveButton = this.add.rectangle(400, 150, 200, 50, 0x4CAF50)
+            .setInteractive()
+            .setVisible(false);
+        
+        this.add.text(400, 150, 'Следующая волна', {
+            fontSize: '16px',
+            fill: '#FFFFFF',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+        
+        this.nextWaveButton.on('pointerdown', () => {
+            this.startNextWave();
+        });
+        
+        this.nextWaveButton.on('pointerover', () => {
+            this.nextWaveButton.setFillStyle(0x66BB6A);
+        });
+        
+        this.nextWaveButton.on('pointerout', () => {
+            this.nextWaveButton.setFillStyle(0x4CAF50);
+        });
         
         console.log('PvE UI создан');
     }
@@ -4238,6 +4293,8 @@ class GameScene extends Phaser.Scene {
         this.enemyUnits.forEach(unit => unit.destroy());
         this.enemyUnits = [];
         this.gridSystem.clearEnemyArea();
+        
+        console.log('Старые враги очищены, начинаем генерацию новых...');
         
         const { PVE_WAVES } = window.gameConfig;
         const difficultyMultiplier = Math.pow(PVE_WAVES.DIFFICULTY_SCALING, waveNumber - 1);
@@ -4252,22 +4309,129 @@ class GameScene extends Phaser.Scene {
         
         console.log(`Врагов создано: ${this.enemyUnits.length}`);
     }
+    
+    handlePvEBattleEnd(victory) {
+        console.log(`=== PvE ВОЛНА ${this.currentWave} ЗАВЕРШЕНА ===`);
+        console.log(`Результат: ${victory ? 'ПОБЕДА' : 'ПОРАЖЕНИЕ'}`);
+        
+        // Скрываем все предыдущие сообщения
+        if (this.waveResultText) {
+            this.waveResultText.setVisible(false);
+        }
+        if (this.nextWaveButton) {
+            this.nextWaveButton.setVisible(false);
+        }
+        
+        if (victory) {
+            // Победа в волне
+            this.waveResultText.setText('ВОЛНА ПРОЙДЕНА!').setFill('#4CAF50').setVisible(true);
+            
+            // Награда за волну
+            const { PVE_WAVES } = window.gameConfig;
+            const reward = PVE_WAVES.WAVE_REWARD;
+            this.economySystem.addCoins(reward);
+            this.updateCoinsDisplay();
+            
+            console.log(`Награда за волну: ${reward} монет`);
+            
+            // Проверяем, не последняя ли это волна
+            if (this.currentWave >= this.totalWaves) {
+                // Победа в PvE!
+                this.showPvEVictory();
+            } else {
+                // Показываем кнопку следующей волны
+                this.nextWaveButton.setVisible(true);
+            }
+        } else {
+            // Поражение в волне
+            this.waveResultText.setText('ВОЛНА ПРОИГРАНА!').setFill('#F44336').setVisible(true);
+            this.nextWaveButton.setVisible(false);
+            
+            // Показываем экран поражения с паузой
+            this.showPvEDefeat();
+            
+            // Перезапускаем сцену через 3 секунды
+            this.time.delayedCall(3000, () => {
+                this.scene.restart({ mode: 'pve' });
+            });
+        }
+    }
+    
+    startNextWave() {
+        this.currentWave++;
+        this.waveText.setText(`ВОЛНА ${this.currentWave}/${this.totalWaves}`);
+        this.waveResultText.setVisible(false);
+        this.nextWaveButton.setVisible(false);
+        
+        // Воскрешаем и лечим всех юнитов игрока (как в PvP)
+        this.resurrectUnits();
+        
+        // Генерируем новую волну
+        this.generateWaveEnemies(this.currentWave);
+        
+        // Перегенерируем витрину как в PvP
+        this.generateShopUnits();
+        const { GRID_HEIGHT } = window.gameConfig;
+        const fieldHeight = GRID_HEIGHT * this.gridSystem.cellSize;
+        const shopY = fieldHeight + 250;
+        const { startX, cardSpacing, cardWidth } = this.calculateShopPositions();
+        this.createShopCards(shopY, startX, cardSpacing, cardWidth);
+        
+        // Показываем витрину и кнопки (экран подготовки)
+        this.showShop();
+        
+        console.log(`Начинаем подготовку к волне ${this.currentWave}`);
+    }
+    
+    showPvEVictory() {
+        this.waveResultText.setText('ПОБЕДА В PvE!').setFill('#FFD700').setVisible(true);
+        this.nextWaveButton.setVisible(false);
+        
+        // Показываем финальную статистику
+        const totalReward = this.totalWaves * window.gameConfig.PVE_WAVES.WAVE_REWARD;
+        const victoryText = this.add.text(400, 200, `Все волны пройдены!\nОбщая награда: ${totalReward} монет`, {
+            fontSize: '18px',
+            fill: '#FFD700',
+            fontStyle: 'bold',
+            align: 'center'
+        }).setOrigin(0.5);
+        
+        console.log('PvE режим завершен победой!');
+    }
+    
+    showPvEDefeat() {
+        this.nextWaveButton.setVisible(false);
+        
+        // Показываем статистику поражения
+        const defeatText = this.add.text(400, 200, `Волна ${this.currentWave} не пройдена.\nПерезапуск через 3 секунды...`, {
+            fontSize: '18px',
+            fill: '#F44336',
+            fontStyle: 'bold',
+            align: 'center'
+        }).setOrigin(0.5);
+        
+        console.log('PvE режим завершен поражением! Перезапуск через 3 секунды...');
+    }
 
     generateBossWave() {
         console.log('Создаем финальную волну с боссом');
         
-        // Босс 3x3 в центре
-        const boss = this.createEnemyUnit('BOSS', 2, 0); // gridX: 2-4, gridY: 0-2
+        const { GRID_HEIGHT, ENEMY_AREA_HEIGHT } = window.gameConfig;
+        const playerAreaHeight = GRID_HEIGHT - ENEMY_AREA_HEIGHT;
+        
+        // Босс 3x3 в центре вражеской зоны
+        const bossY = 1; // Центр вражеской зоны (y = 0-5)
+        const boss = this.createEnemyUnit('BOSS', 2, bossY);
         if (boss) {
             this.enemyUnits.push(boss);
-            this.gridSystem.placeUnit(2, 0, boss);
+            this.gridSystem.placeUnit(2, bossY, boss);
         }
         
-        // 2-3 сильных обычных юнита по бокам
+        // 2-3 сильных обычных юнита по бокам в вражеской зоне
         const sideUnits = ['TANK', 'MAGE', 'WITCH'];
         const positions = [
-            { x: 0, y: 2 },
-            { x: 5, y: 2 },
+            { x: 0, y: 3 },
+            { x: 5, y: 3 },
             { x: 1, y: 4 }
         ];
         
@@ -4286,13 +4450,19 @@ class GameScene extends Phaser.Scene {
         const unitTypes = ['ARCHER', 'WARRIOR', 'BARBARIAN', 'HEALER', 'MAGE', 'TANK', 'ASSASSIN', 'DRUID', 'WITCH'];
         const numEnemies = Math.min(3 + waveNumber, 5); // 3-5 врагов в зависимости от волны
         
-        // Генерируем доступные позиции в верхней половине поля
+        // Генерируем доступные позиции в верхней половине поля (вражеская зона)
         const availablePositions = [];
-        for (let y = 0; y < 6; y++) { // Только верхняя половина (вражеская зона)
+        const { GRID_HEIGHT, ENEMY_AREA_HEIGHT } = window.gameConfig;
+        const playerAreaHeight = GRID_HEIGHT - ENEMY_AREA_HEIGHT;
+        
+        // Вражеская зона - верхняя половина поля (y = 0-5)
+        for (let y = 0; y < playerAreaHeight; y++) {
             for (let x = 0; x < 8; x++) {
                 availablePositions.push({ x, y });
             }
         }
+        
+        console.log(`Всего доступных позиций для врагов: ${availablePositions.length}`);
         
         // Перемешиваем позиции
         Phaser.Utils.Array.Shuffle(availablePositions);
@@ -4326,54 +4496,59 @@ class GameScene extends Phaser.Scene {
 
     createEnemyUnit(unitType, gridX, gridY) {
         const unitData = window.gameConfig.UNIT_TYPES[unitType];
-        if (!unitData) return null;
+        if (!unitData) {
+            return null;
+        }
         
         // Проверяем, можно ли разместить
         if (!this.gridSystem.canPlaceEnemyUnit(gridX, gridY, unitData.size)) {
             return null;
         }
         
+        // Рассчитываем правильные координаты сразу
+        const startX = this.gridSystem.gridOffsetX + (gridX * this.gridSystem.cellSize);
+        const startY = this.gridSystem.gridOffsetY + (gridY * this.gridSystem.cellSize);
+        const centerX = startX + (unitData.size.width * this.gridSystem.cellSize / 2);
+        const centerY = startY + (unitData.size.height * this.gridSystem.cellSize / 2);
+        
         let unit;
         switch (unitType) {
             case 'ARCHER':
-                unit = new Archer(this, 0, 0);
+                unit = new Archer(this, centerX, centerY, true);
                 break;
             case 'WARRIOR':
-                unit = new Warrior(this, 0, 0);
+                unit = new Warrior(this, centerX, centerY, true);
                 break;
             case 'BARBARIAN':
-                unit = new Barbarian(this, 0, 0);
+                unit = new Barbarian(this, centerX, centerY, true);
                 break;
             case 'HEALER':
-                unit = new Healer(this, 0, 0);
+                unit = new Healer(this, centerX, centerY, true);
                 break;
             case 'MAGE':
-                unit = new Mage(this, 0, 0);
+                unit = new Mage(this, centerX, centerY, true);
                 break;
             case 'TANK':
-                unit = new Tank(this, 0, 0);
+                unit = new Tank(this, centerX, centerY, true);
                 break;
             case 'ASSASSIN':
-                unit = new Assassin(this, 0, 0);
+                unit = new Assassin(this, centerX, centerY, true);
                 break;
             case 'DRUID':
-                unit = new Druid(this, 0, 0);
+                unit = new Druid(this, centerX, centerY, true);
                 break;
             case 'WITCH':
-                unit = new Witch(this, 0, 0);
+                unit = new Witch(this, centerX, centerY, true);
                 break;
             case 'BOSS':
-                unit = new Boss(this, 0, 0);
+                unit = new Boss(this, centerX, centerY, true);
                 break;
         }
         
         if (unit) {
-            // Позиционируем юнит на правильной позиции
-            const startX = this.gridSystem.gridOffsetX + (gridX * this.gridSystem.cellSize);
-            const startY = this.gridSystem.gridOffsetY + (gridY * this.gridSystem.cellSize);
-            const centerX = startX + (unitData.size.width * this.gridSystem.cellSize / 2);
-            const centerY = startY + (unitData.size.height * this.gridSystem.cellSize / 2);
-            unit.setPosition(centerX, centerY);
+            // Устанавливаем правильные координаты сетки
+            unit.gridX = gridX;
+            unit.gridY = gridY;
         }
         
         return unit;

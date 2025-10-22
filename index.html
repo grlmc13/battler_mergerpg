@@ -82,7 +82,7 @@
             loadPhaser().then(() => {
                 console.log('Phaser загружен. Загружаем игру...');
                 const gameScript = document.createElement('script');
-                gameScript.src = 'src/game.js';
+                gameScript.src = 'src/game.js?v=' + Date.now();
                 gameScript.onload = () => {
                     console.log('Игра загружена и запущена');
                 };
